@@ -1,0 +1,388 @@
+# sleigh specification file for CoolRISC 816
+
+define endian=little;
+define alignment=1;
+
+# Instruction words are 22 bits wide
+define space code     type=rom_space      size=2 wordsize=3 default;
+define space data     type=ram_space      size=2;
+define space register type=register_space size=1;
+define space stack    type=ram_space      size=1 wordsize=2;
+
+define register offset=0x00 size=1 [ A R0 R1 R2 R3 STAT ];
+define register offset=0x10 size=1 [ IPL IPH I0L I0H I1L I1H I2L I2H I3L I3H ];
+define register offset=0x10 size=2 [ IP I0 I1 I2 I3 ];
+define register offset=0x20 size=1 [ _C _V _SF _SE ];
+define register offset=0x40 size=2 [ PC SP ];
+
+define bitrange
+  EV0=STAT[0,1]
+  EV1=STAT[1,1]
+  IN0=STAT[2,1]
+  IN1=STAT[3,1]
+  IN2=STAT[4,1]
+  GIE=STAT[5,1]
+  IE1=STAT[6,1]
+  IE2=STAT[7,1]
+;
+
+# Fake Registers used for pcode control
+define register offset=0x60 size=1 [
+  DECOMPILE_MODE
+];
+
+define token opbyte (22)
+  op0_22        = (0,21)
+  op19_3        = (19,21)
+  op17_5        = (17,21)
+  op16_6        = (16,21)
+  op14_8        = (14,21)
+  op12_10       = (12,21)
+  op4_18        = (4,21)
+  reg           = (8,11)
+  reg_op2       = (8,11)
+  reg_op1       = (4,7)
+  reg_res       = (0,3)
+  ix            = (17,18)
+  ix_r3         = (0,1)
+  offset_8      = (0,7)
+  sign_8        = (6,7)
+  offset_7      = (0,6)
+  cc_3          = (16,18)
+  n_addr_16     = (0,15)
+  n_addr_8      = (0,7)
+  n_data_8      = (0,7)
+  n_data_8_m    = (8,15)
+  alu_op_5      = (12,16)
+  divn_4        = (0,3)
+;
+
+attach variables [ reg reg_res reg_op1 reg_op2 ] [ I0L I0H I1L I1H I2L I2H I3L I3H IPL IPH STAT R3 R2 R1 R0 A ];
+
+attach variables [ ix ix_r3 ] [ I0 I1 I2 I3 ];
+
+attach names [ alu_op_5 ] [ CMPA CMP AND SUBS SUBD SUBDC MULA SUBSC XOR _ MOVE OR ADD ADDC MUL TSTB SHRA INC CMVD CMVS SHRC INCC SHR _ CPL1 CPL2 SHL DEC CPL2C _ SHLC DECC ]
+
+define context contextreg
+  cmp_flag = (0,0) noflow # modify jmp condition only after a cmp[a]
+;
+
+################################################################
+# Pseudo Instructions
+################################################################
+define pcodeop halt;
+define pcodeop program_memory_dump;
+define pcodeop freq;
+
+################################################################
+# Macros
+################################################################
+
+macro push(val) {
+  SP = SP + 1;
+  *[stack]SP = val;
+  _SF = (SP > 5);
+  _SE = 0;
+}
+
+macro pop(ret) {
+  ret = *[stack]SP;
+  SP = SP - 1;
+  _SF = 0;
+  _SE = SP == 0;
+}
+
+# macro setResultFlags(result) {
+# 	$(Z_flag) = (result == 0);
+# 	$(S_flag) = (result s< 0);
+# }
+
+# macro additionFlags(operand1, operand2) {
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask)) & (AFmask + 1)) != 0;
+# 	$(PV_flag) = scarry(operand1, operand2);
+# 	$(N_flag) = 0;
+# 	$(C_flag) = carry(operand1, operand2);
+# }
+
+# macro additionFlagsNoPV(operand1, operand2) {
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask)) & (AFmask + 1)) != 0;
+# #	$(PV_flag) is not affected
+# 	$(N_flag) = 0;
+# 	$(C_flag) = carry(operand1, operand2);
+# }
+
+# macro additionWithCarry(operand1, operand2, result) {
+# 	local Ccopy = zext($(C_flag));
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask) + Ccopy) & (AFmask + 1)) != 0;
+# 	$(PV_flag) = scarry(operand1, operand2);
+# 	$(N_flag) = 0;
+# 	$(C_flag) = carry(operand1, operand2);
+# 	local tempResult = operand1 + operand2;
+# 	$(C_flag) = $(C_flag) || carry(tempResult, Ccopy);
+# 	$(PV_flag) = $(PV_flag) ^^ scarry(tempResult, Ccopy);
+# 	result = tempResult + Ccopy;
+# }
+
+# macro subtractionFlags(operand1, operand2) {
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask)) & (AFmask + 1)) != 0;
+# 	$(PV_flag) = sborrow(operand1, operand2);
+# 	$(N_flag) = 1;
+# 	$(C_flag) = operand1 < operand2;
+# }
+
+# macro subtractionFlagsNoC(operand1, operand2) {
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask)) & (AFmask + 1)) != 0;
+# 	$(PV_flag) = sborrow(operand1, operand2);
+# 	$(N_flag) = 1;
+# #	$(C_flag) is not affected
+# }
+
+# macro subtractionWithCarry(operand1, operand2, result) {
+# 	local Ccopy = zext($(C_flag));
+# 	local AFmask = -1 >> 4;
+# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask) - Ccopy) & (AFmask + 1)) != 0;
+# 	$(PV_flag) = sborrow(operand1, operand2);
+# 	$(N_flag) = 1;
+# 	$(C_flag) = operand1 < operand2;
+# 	local tempResult = operand1 - operand2;
+# 	$(C_flag) = $(C_flag) || (tempResult < Ccopy);
+# 	$(PV_flag) = $(PV_flag) ^^ sborrow(tempResult, Ccopy);
+# 	result = tempResult - Ccopy;
+# }
+
+# macro setSubtractFlags(op1,op2) {
+# 	$(C_flag) = (op1 < op2);
+# }
+
+# # places the parity bit of the given byte in out_parity_bit
+# # the upper 7 bits of out_parity_bit are cleared
+# macro setParity(in_byte) {
+# 	local tmp = in_byte ^ (in_byte >> 1);
+# 	tmp =  tmp ^ (tmp >> 2);
+# 	tmp = (tmp ^ (tmp >> 4)) & 1;
+# 	$(PV_flag) = (tmp == 0);
+
+# #     $(PV_flag) = hasEvenParity(in_byte);
+# }
+
+# macro ioWrite(addr,val) {
+#    *[io]:1 addr = val;
+# }
+
+# macro ioRead(addr,dest) {
+#    dest = *[io]:1 addr;
+# }
+
+# macro push16(val16) {
+# 	SP = SP - 2;
+# 	*:2 SP = val16;
+# }
+
+# macro pop16(ret16) {
+# 	ret16 = *:2 SP;
+# 	SP = SP + 2;
+# }
+
+# macro swap(val16) {
+# 	ptr:$(PTRSIZE) = SP;
+# 	tmp:2 = *:2 ptr;
+# 	*:2 ptr = val16;
+# 	val16 = tmp;
+# }
+
+# macro MemRead(dest,off) {
+#    	ptr:$(PTRSIZE) = off;
+# 	dest = * ptr;
+# }
+
+# macro MemStore(off,val) {
+#    	ptr:$(PTRSIZE) = off;
+# 	* ptr = val;
+# }
+
+# macro JumpToLoc(off) {
+# 	ptr:$(PTRSIZE) = off;
+# 	goto [ptr];
+# }
+
+################################################################
+# C816 addressing modes
+
+IndOff8:  (ix, offset_8)     is ix & offset_8       { ptr = ix + offset_8; export * ptr; }
+IndOff8:  (ix)               is ix & offset_8=0     { ptr = ix; export * ptr; }
+
+IndR3:    (ix_r3, R3)        is ix_r3               { ptr = ix_r3 + R3; export * ptr; }
+IndR3m:   (ixm, R3)          is ixm                 { ptr = ixm + R3; export * ptr; }
+
+IndP8:    (ix, off)+     is ix & offset_7 & sign=0   [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8:    (ix)+          is ix & offset_7=1 & sign=0 [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+
+IndP8:    -(ix, off)     is ix & offset_7 & sign=1   [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8:    -(ix)          is ix & offset_7=1 & sign=1 [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+
+IndP8m:   (ixm, off)+    is ixm & offset_7 & sign=0   [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8m:   (ixm)+         is ixm & offset_7=1 & sign=0 [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+
+IndP8m:   -(ixm, off)    is ixm & offset_7 & sign=1   [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8m:   -(ixm)         is ixm & offset_7=1 & sign=1 [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+
+Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16 ] { export * ptr; }
+Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8 ] { export * ptr; }
+
+Data8:    val                 is n_data_8         [ val = ~n_data_8 ] { export val; }
+Data8m:   val                 is n_data_8_m       [ val = ~n_data_8_m ] { export val; }
+
+with : cmp_flag=0 {
+  cc: "CC"  is cc_3=0x0 { c = (_C == 0); export c; }
+  cc: "VC"  is cc_3=0x1 { c = (_V == 0); export c; }
+  cc: "ZC"  is cc_3=0x2 { c = (_Z == 0); export c; }
+  cc: "CS"  is cc_3=0x4 { c = _C; export c; }
+  cc: "VS"  is cc_3=0x5 { c = _V; export c; }
+  cc: "ZS"  is cc_3=0x6 { c = _Z; export c; }
+}
+
+with : cmp_flag=1 {
+  cc: "GT"  is cc_3=0x0 { c = (_C == 0); export c; }
+  cc: "GE"  is cc_3=0x1 { c = (_V == 0); export c; }
+  cc: "NE"  is cc_3=0x2 { c = (_Z == 0); export c; }
+  cc: "LE"  is cc_3=0x4 { c = _C; export c; }
+  cc: "LT"  is cc_3=0x5 { c = _V; export c; }
+  cc: "EQ"  is cc_3=0x6 { c = _Z; export c; }
+}
+
+cc: "UMP" is cc_3=0x3 { c = 1; export c; }
+cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
+
+################################################################
+# C816 ops
+
+:NOP                is op0_22=0b1111111111111111111111 {
+}
+
+:HALT               is op0_22=0b0010111101111111111111 {
+  halt();
+}
+
+:PMD "0"            is op0_22=0b0010111110111011111111 {
+  program_memory_dump(0);
+}
+
+:PMD "1"            is op0_22=0b0010111110111111111111 {
+  program_memory_dump(1);
+}
+
+:SFLAG              is op0_22=0b0010110111111111111111 {
+  A = _C << 7 | (_C ^ _V) << 6 | _SF << 5 | _SE << 4;
+}
+
+:FREQ divn_4        is op4_18=0b001011101111111111 & divn_4 {
+  freq(divn_4);
+}
+
+:RET                is op0_22=0b1111110011111111111111 {
+  local loc;
+  pop(loc);
+  return loc;
+}
+
+:RETI               is op0_22=0b1111110001111111111111 {
+  local loc;
+  pop(loc);
+  GIE = 1;
+  return loc;
+}
+
+:POP                is op0_22=0b1111101011111111111111 {
+  pop(IP);
+}
+
+:PUSH               is op0_22=0b1011011111111111111111 {
+  push(IP);
+}
+
+:J^cc Addr16        is op19_3=0b110 & cc & Addr16 {
+  if (cc) goto Addr16[code];
+}
+
+:J^cc IP            is op19_3=0b100 & cc & Addr16 {
+  if (cc) goto IP[code];
+}
+
+:CALL Addr16        is op16_6=0b111001 & Addr16 {
+  push(PC+1);
+  goto Addr16[code];
+}
+
+:CALL IP            is op16_6=0b101001 & Addr16 {
+  push(PC+1);
+  goto IP[code];
+}
+
+:CALLS Addr16       is op16_6=0b111010 & Addr16 {
+  IP = PC+1;
+  goto Addr16[code];
+}
+
+:CALLS IP           is op16_6=0b101010 & Addr16 {
+  local tmp = IP;
+  IP = PC+1;
+  goto tmp[code];
+}
+
+# ALU instructions:
+
+# 1 - ALU Indexed offset
+:^alu_op_5 reg,IndOff8    is op19_3=0b011 & reg & IndOff8 & alu_op_5 {
+}
+
+# 2 - ALU Indexed pre or post-modified
+:^alu_op_5 reg,IndP8      is op19_3=0b010 & reg & IndP8 & alu_op_5 {
+}
+
+# 3 - ALU immediate data
+:^alu_op_5 reg,"#"Data8   is op17_5=0b00111 & reg & Data8 & alu_op_5 {
+}
+
+# 4 - ALU between registers
+:^alu_op_5 reg_res,reg_op1,reg_op2 is op17_5=0b00110 & reg_res & reg_op1 & reg_op2 & alu_op_5 {
+}
+
+# 5 - ALU with R3 offset
+:^alu_op_5 reg,IndR3     is op17_5=0b00011 & reg & IndR3 & alu_op_5 {
+}
+
+# 6 - ALU immediate address
+:^alu_op_5 reg,Addr8     is op17_5=0b00010 & reg & Addr8 & alu_op_5 {
+}
+
+# 7 - MOVE with R3 offset
+:MOVE IndR3m,reg         is op14_8=0b00001110 & IndR3m & reg {
+}
+
+# 8 - MOVE with pre or post modification
+:MOVE IndP8m,reg         is op14_8=0b00001101 & IndP8m & reg {
+}
+
+# 9 - MOVE with immediate offset (??)
+:MOVE IndOff8,reg        is op14_8=0b00001011 & IndOff8 & reg {
+}
+
+# 10 - MOVE immediate address
+:MOVE Addr8,reg          is op12_10=0b0000011011 & Addr8 & reg {
+}
+
+# 10 - MOVE immediate address & data
+:MOVE Addr8,Data8m       is op16_6=0 & Addr8 & Data8m {
+}
+
+# :RET cc             is op6_2=0x3 & cc & bits0_3=0x0 {
+#   if (!cc) goto inst_next;
+#   pop16(PC);
+#   ptr:$(PTRSIZE) = PC;
+#   return [ptr];
+# }
