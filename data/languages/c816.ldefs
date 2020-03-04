@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<language_definitions>
+  <language processor="C816"
+            endian="little"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="c816.sla"
+            processorspec="c816.pspec"
+            manualindexfile="../manuals/c816.idx"
+            id="c816:LE:16:default">
+    <description>CoolRISC 816</description>
+    <compiler name="default" spec="c816.cspec" id="default"/>
+    <external_name tool="gnu" name="c816"/>
+  </language>
+</language_definitions>

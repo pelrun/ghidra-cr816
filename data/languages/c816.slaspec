@@ -12,8 +12,8 @@ define space stack    type=ram_space      size=1 wordsize=2;
 define register offset=0x00 size=1 [ A R0 R1 R2 R3 STAT ];
 define register offset=0x10 size=1 [ IPL IPH I0L I0H I1L I1H I2L I2H I3L I3H ];
 define register offset=0x10 size=2 [ IP I0 I1 I2 I3 ];
-define register offset=0x20 size=1 [ _C _V _SF _SE ];
-define register offset=0x40 size=2 [ PC SP ];
+define register offset=0x20 size=1 [ _C _V _SF _SE SP ];
+define register offset=0x40 size=2 [ PC ];
 
 define bitrange
   EV0=STAT[0,1]
@@ -55,7 +55,7 @@ define token opbyte (24)
   ix_r3         = (0,1)
   ixm           = (12,13)
   offset_8      = (0,7)
-  sign_8        = (6,7)
+  sign          = (6,7)
   soffset_8     = (0,7) signed
   offset_7      = (0,6)
   cc_3          = (16,18)
@@ -69,7 +69,7 @@ define token opbyte (24)
 
 attach variables [ reg reg_res reg_op1 reg_op2 ] [ I0L I0H I1L I1H I2L I2H I3L I3H IPL IPH STAT R3 R2 R1 R0 A ];
 
-attach variables [ ix ix_r3 ] [ I0 I1 I2 I3 ];
+attach variables [ ix ix_r3 ixm ] [ I0 I1 I2 I3 ];
 
 attach names [ alu_op_5 ] [ CMPA CMP AND SUBS SUBD SUBDC MULA SUBSC XOR _ MOVE OR ADD ADDC MUL TSTB SHRA INC CMVD CMVS SHRC INCC SHR _ CPL1 CPL2 SHL DEC CPL2C _ SHLC DECC ];
 
@@ -219,49 +219,49 @@ macro pop(ret) {
 ################################################################
 # C816 addressing modes
 
-IndOff8:  (ix, offset_8)     is ix & offset_8       { ptr = ix + offset_8; export * ptr; }
-IndOff8:  (ix)               is ix & offset_8=0     { ptr = ix; export * ptr; }
+IndOff8:  (ix, offset_8)     is ix & offset_8       { ptr = ix + offset_8; export *:1 ptr; }
+IndOff8:  (ix)               is ix & offset_8=0     { ptr = ix; export *:1 ptr; }
 
-IndR3:    (ix_r3, R3)        is ix_r3               { ptr = ix_r3 + R3; export * ptr; }
-IndR3m:   (ixm, R3)          is ixm                 { ptr = ixm + R3; export * ptr; }
+IndR3:    (ix_r3, R3)        is ix_r3               { ptr = ix_r3 + R3; export *:1 ptr; }
+IndR3m:   (ixm, R3)          is ixm                 { ptr = ixm + R3; export *:1 ptr; }
 
-IndP8:    (ix, off)+     is ix & offset_8 & sign=0   [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
-IndP8:    (ix)+          is ix & offset_8=1 & sign=0 [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0   { ptr:2 = ix; ix = ix + offset_8; export *:1 ptr; }
+IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0  { ptr:2 = ixm; ixm = ixm + offset_8; export *:1 ptr; }
 
-IndP8:    -(ix, off)     is ix & offset_7 & sign=1   [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
-IndP8:    -(ix)          is ix & offset_7=1 & sign=1 [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8:    (ix)+          is ix & offset_8=1 & sign=0     { ptr = ix; ix = ix + 1; export *:1 ptr; }
+IndP8m:   (ixm)+         is ixm & offset_8=1 & sign=0    { ptr:2 = ixm; ixm = ixm + 1; export *:1 ptr; }
 
-IndP8m:   (ixm, off)+    is ixm & offset_7 & sign=0   [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
-IndP8m:   (ixm)+         is ixm & offset_7=1 & sign=0 [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8:    -(ix, off)     is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; export *:1 ptr; }
+IndP8m:   -(ixm, off)    is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; export *:1 ptr; }
 
-IndP8m:   -(ixm, off)    is ixm & offset_7 & sign=1   [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
-IndP8m:   -(ixm)         is ixm & offset_7=1 & sign=1 [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8:    -(ix)          is ix & soffset_8=1 & sign=1   { ix = ix - 1; ptr:2 = ix; export *:1 ptr; }
+IndP8m:   -(ixm)         is ixm & soffset_8=1 & sign=1  { ixm = ixm - 1; ptr:2 = ixm; export * ptr; }
 
-Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16; ] { export * ptr; }
-Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8; ] { export * ptr; }
+Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16; ] { export *:1 ptr; }
+Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8; ] { export *:1 ptr; }
 
-Data8:    val                 is n_data_8         [ val = ~n_data_8; ] { export val; }
-Data8m:   val                 is n_data_8_m       [ val = ~n_data_8_m; ] { export val; }
+Data8:    imm8                 is n_data_8         [ imm8 = ~n_data_8; ] { tmp:1 = imm8; export tmp; }
+Data8m:   imm8                 is n_data_8_m       [ imm8 = ~n_data_8_m; ] { tmp:1 = imm8; export tmp; }
 
 with : cmp_flag=0 {
-  cc: "CC"  is cc_3=0x0 { c = (_C == 0); export c; }
-  cc: "VC"  is cc_3=0x1 { c = (_V == 0); export c; }
-  cc: "ZC"  is cc_3=0x2 { c = (_Z == 0); export c; }
-  cc: "CS"  is cc_3=0x4 { c = _C; export c; }
-  cc: "VS"  is cc_3=0x5 { c = _V; export c; }
-  cc: "ZS"  is cc_3=0x6 { c = _Z; export c; }
+cc: "CC"  is cc_3=0x0 { c = (_C == 0); export c; }
+cc: "VC"  is cc_3=0x1 { c = (_V == 0); export c; }
+cc: "ZC"  is cc_3=0x2 { c = (A != 0); export c; }
+cc: "CS"  is cc_3=0x4 { c = _C; export c; }
+cc: "VS"  is cc_3=0x5 { c = _V; export c; }
+cc: "ZS"  is cc_3=0x6 { c = (A == 0); export c; }
 }
 
 with : cmp_flag=1 {
-  cc: "GT"  is cc_3=0x0 { c = (_C == 0); export c; }
-  cc: "GE"  is cc_3=0x1 { c = (_V == 0); export c; }
-  cc: "NE"  is cc_3=0x2 { c = (_Z == 0); export c; }
-  cc: "LE"  is cc_3=0x4 { c = _C; export c; }
-  cc: "LT"  is cc_3=0x5 { c = _V; export c; }
-  cc: "EQ"  is cc_3=0x6 { c = _Z; export c; }
+cc: "GT"  is cc_3=0x0 { c = (_C == 0); export c; }
+cc: "GE"  is cc_3=0x1 { c = (_V == 0); export c; }
+cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
+cc: "LE"  is cc_3=0x4 { c = _C; export c; }
+cc: "LT"  is cc_3=0x5 { c = _V; export c; }
+cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
 }
 
-cc: "UMP" is cc_3=0x3 { c = 1; export c; }
+cc: "UMP" is cc_3=0x3 { c:1 = 1; export c; }
 cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 
 ################################################################
@@ -275,11 +275,11 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 }
 
 :PMD "0"            is op0_22=0b0010111110111011111111 {
-  program_memory_dump(0);
+  #program_memory_dump(0);
 }
 
 :PMD "1"            is op0_22=0b0010111110111111111111 {
-  program_memory_dump(1);
+  #program_memory_dump(1);
 }
 
 :SFLAG              is op0_22=0b0010110111111111111111 {
@@ -287,21 +287,21 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 }
 
 :FREQ divn_4        is op4_18=0b001011101111111111 & divn_4 {
-  freq(divn_4);
+  #freq(divn_4);
 }
 
 :RET                is op0_22=0b1111110011111111111111 {
   local loc;
   pop(loc);
-  ptr:2 = loc;
+  ptr:1 = loc;
   return [ptr];
 }
 
 :RETI               is op0_22=0b1111110001111111111111 {
   local loc;
   pop(loc);
-  GIE = 1;
-  ptr:2 = loc;
+  #GIE = 1;
+  ptr:1 = loc;
   return [ptr];
 }
 
@@ -317,8 +317,9 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
   if (cc) goto Addr16;
 }
 
-:J^cc IP            is op19_3=0b100 & cc & Addr16 {
-  if (cc) goto IP;
+:J^cc "IP"            is op19_3=0b100 & cc {
+  local ptr = *IP;
+  if (cc) goto [ptr];
 }
 
 :CALL Addr16        is op16_6=0b111001 & Addr16 {
@@ -326,9 +327,9 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
   goto Addr16;
 }
 
-:CALL IP            is op16_6=0b101001 & Addr16 {
+:CALL "IP"            is op16_6=0b101001 & Addr16 {
   push(PC+1);
-  goto IP;
+  goto [IP];
 }
 
 :CALLS Addr16       is op16_6=0b111010 & Addr16 {
@@ -336,10 +337,10 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
   goto Addr16;
 }
 
-:CALLS IP           is op16_6=0b101010 & Addr16 {
-  local tmp = IP;
+:CALLS "IP"           is op16_6=0b101010 & Addr16 {
+  ptr:1 = IP;
   IP = PC+1;
-  goto tmp;
+  goto [ptr];
 }
 
 # ALU instructions:
