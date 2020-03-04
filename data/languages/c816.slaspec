@@ -4,7 +4,7 @@ define endian=little;
 define alignment=1;
 
 # Instruction words are 22 bits wide
-define space code     type=rom_space      size=2 wordsize=3 default;
+define space code     type=ram_space      size=2 wordsize=3 default;
 define space data     type=ram_space      size=2;
 define space register type=register_space size=1;
 define space stack    type=ram_space      size=1 wordsize=2;
@@ -31,7 +31,15 @@ define register offset=0x60 size=1 [
   DECOMPILE_MODE
 ];
 
-define token opbyte (22)
+define register offset=0x70 size=4 [
+  contextreg
+];
+
+define context contextreg
+  cmp_flag = (0,0) noflow
+;
+
+define token opbyte (24)
   op0_22        = (0,21)
   op19_3        = (19,21)
   op17_5        = (17,21)
@@ -45,8 +53,10 @@ define token opbyte (22)
   reg_res       = (0,3)
   ix            = (17,18)
   ix_r3         = (0,1)
+  ixm           = (12,13)
   offset_8      = (0,7)
   sign_8        = (6,7)
+  soffset_8     = (0,7) signed
   offset_7      = (0,6)
   cc_3          = (16,18)
   n_addr_16     = (0,15)
@@ -61,11 +71,7 @@ attach variables [ reg reg_res reg_op1 reg_op2 ] [ I0L I0H I1L I1H I2L I2H I3L I
 
 attach variables [ ix ix_r3 ] [ I0 I1 I2 I3 ];
 
-attach names [ alu_op_5 ] [ CMPA CMP AND SUBS SUBD SUBDC MULA SUBSC XOR _ MOVE OR ADD ADDC MUL TSTB SHRA INC CMVD CMVS SHRC INCC SHR _ CPL1 CPL2 SHL DEC CPL2C _ SHLC DECC ]
-
-define context contextreg
-  cmp_flag = (0,0) noflow # modify jmp condition only after a cmp[a]
-;
+attach names [ alu_op_5 ] [ CMPA CMP AND SUBS SUBD SUBDC MULA SUBSC XOR _ MOVE OR ADD ADDC MUL TSTB SHRA INC CMVD CMVS SHRC INCC SHR _ CPL1 CPL2 SHL DEC CPL2C _ SHLC DECC ];
 
 ################################################################
 # Pseudo Instructions
@@ -219,23 +225,23 @@ IndOff8:  (ix)               is ix & offset_8=0     { ptr = ix; export * ptr; }
 IndR3:    (ix_r3, R3)        is ix_r3               { ptr = ix_r3 + R3; export * ptr; }
 IndR3m:   (ixm, R3)          is ixm                 { ptr = ixm + R3; export * ptr; }
 
-IndP8:    (ix, off)+     is ix & offset_7 & sign=0   [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
-IndP8:    (ix)+          is ix & offset_7=1 & sign=0 [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8:    (ix, off)+     is ix & offset_8 & sign=0   [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8:    (ix)+          is ix & offset_8=1 & sign=0 [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
 
-IndP8:    -(ix, off)     is ix & offset_7 & sign=1   [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
-IndP8:    -(ix)          is ix & offset_7=1 & sign=1 [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8:    -(ix, off)     is ix & offset_7 & sign=1   [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8:    -(ix)          is ix & offset_7=1 & sign=1 [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
 
-IndP8m:   (ixm, off)+    is ixm & offset_7 & sign=0   [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
-IndP8m:   (ixm)+         is ixm & offset_7=1 & sign=0 [ off = zext(offset_8) ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8m:   (ixm, off)+    is ixm & offset_7 & sign=0   [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
+IndP8m:   (ixm)+         is ixm & offset_7=1 & sign=0 [ off = zext(offset_8); ] { ptr = ix; ix = ix + off; export * ptr; }
 
-IndP8m:   -(ixm, off)    is ixm & offset_7 & sign=1   [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
-IndP8m:   -(ixm)         is ixm & offset_7=1 & sign=1 [ off = -sext[offset_8]; ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8m:   -(ixm, off)    is ixm & offset_7 & sign=1   [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
+IndP8m:   -(ixm)         is ixm & offset_7=1 & sign=1 [ off = 0 - sext(soffset_8); ] { ix = ix - off; ptr = ix; export * ptr; }
 
-Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16 ] { export * ptr; }
-Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8 ] { export * ptr; }
+Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16; ] { export * ptr; }
+Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8; ] { export * ptr; }
 
-Data8:    val                 is n_data_8         [ val = ~n_data_8 ] { export val; }
-Data8m:   val                 is n_data_8_m       [ val = ~n_data_8_m ] { export val; }
+Data8:    val                 is n_data_8         [ val = ~n_data_8; ] { export val; }
+Data8m:   val                 is n_data_8_m       [ val = ~n_data_8_m; ] { export val; }
 
 with : cmp_flag=0 {
   cc: "CC"  is cc_3=0x0 { c = (_C == 0); export c; }
@@ -287,14 +293,16 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 :RET                is op0_22=0b1111110011111111111111 {
   local loc;
   pop(loc);
-  return loc;
+  ptr:2 = loc;
+  return [ptr];
 }
 
 :RETI               is op0_22=0b1111110001111111111111 {
   local loc;
   pop(loc);
   GIE = 1;
-  return loc;
+  ptr:2 = loc;
+  return [ptr];
 }
 
 :POP                is op0_22=0b1111101011111111111111 {
@@ -306,32 +314,32 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 }
 
 :J^cc Addr16        is op19_3=0b110 & cc & Addr16 {
-  if (cc) goto Addr16[code];
+  if (cc) goto Addr16;
 }
 
 :J^cc IP            is op19_3=0b100 & cc & Addr16 {
-  if (cc) goto IP[code];
+  if (cc) goto IP;
 }
 
 :CALL Addr16        is op16_6=0b111001 & Addr16 {
   push(PC+1);
-  goto Addr16[code];
+  goto Addr16;
 }
 
 :CALL IP            is op16_6=0b101001 & Addr16 {
   push(PC+1);
-  goto IP[code];
+  goto IP;
 }
 
 :CALLS Addr16       is op16_6=0b111010 & Addr16 {
   IP = PC+1;
-  goto Addr16[code];
+  goto Addr16;
 }
 
 :CALLS IP           is op16_6=0b101010 & Addr16 {
   local tmp = IP;
   IP = PC+1;
-  goto tmp[code];
+  goto tmp;
 }
 
 # ALU instructions:
