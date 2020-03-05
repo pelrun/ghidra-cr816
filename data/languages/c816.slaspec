@@ -15,16 +15,16 @@ define register offset=0x10 size=2 [ IP I0 I1 I2 I3 ];
 define register offset=0x20 size=1 [ _F SP _ALUd _ALUs];
 define register offset=0x40 size=2 [ PC ];
 
-define bitrange
-  EV0=STAT[0,1]
-  EV1=STAT[1,1]
-  IN0=STAT[2,1]
-  IN1=STAT[3,1]
-  IN2=STAT[4,1]
-  GIE=STAT[5,1]
-  IE1=STAT[6,1]
-  IE2=STAT[7,1]
-;
+# define bitrange
+#   EV0=STAT[0,1]
+#   EV1=STAT[1,1]
+#   IN0=STAT[2,1]
+#   IN1=STAT[3,1]
+#   IN2=STAT[4,1]
+#   GIE=STAT[5,1]
+#   IE1=STAT[6,1]
+#   IE2=STAT[7,1]
+# ;
 
 @define V_flag 	"_F[0,1]"
 @define C_flag 	"_F[1,1]"
