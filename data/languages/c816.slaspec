@@ -115,27 +115,27 @@ IndOff8:  (ix)               is ix & offset_8=0            { ptr = ix; export pt
 IndR3:    (ix_r3, "R3")      is ix_r3                      { ptr = zext(R3) + ix_r3; export ptr; }
 IndR3m:   (ixm, "R3")        is ixm                        { ptr = zext(R3) + ixm; export ptr; }
 
-IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0     { ptr:2 = ix; ix = ix + offset_8; export ptr;  }
-IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0    { ptr:2 = ixm; ixm = ixm + offset_8; export ptr;  }
+IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0     { ptr = ix; ix = ix + offset_8; export ptr;  }
+IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0    { ptr = ixm; ixm = ixm + offset_8; export ptr;  }
 
 IndP8:    (ix)+              is ix & offset_8=1 & sign=0   { ptr = ix; ix = ix + 1; export ptr;  }
-IndP8m:   (ixm)+             is ixm & offset_8=1 & sign=0  { ptr:2 = ixm; ixm = ixm + 1; export ptr; }
+IndP8m:   (ixm)+             is ixm & offset_8=1 & sign=0  { ptr = ixm; ixm = ixm + 1; export ptr; }
 
 IndP8:    -(ix, off)         is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; export ptr; }
 IndP8m:   -(ixm, off)        is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; export ptr; }
 
-IndP8:    -(ix)              is ix & soffset_8=0xFF        { ix = ix - 1; ptr:2 = ix; export ptr; }
-IndP8m:   -(ixm)             is ixm & soffset_8=0xFF       { ixm = ixm - 1; ptr:2 = ixm; export ptr; }
+IndP8:    -(ix)              is ix & soffset_8=0xFF        { ix = ix - 1; ptr = ix; export ptr; }
+IndP8m:   -(ixm)             is ixm & soffset_8=0xFF       { ixm = ixm - 1; ptr = ixm; export ptr; }
 
-Addr8:    ptr                is n_addr_8                   [ ptr = ~n_addr_8; ] { export ptr; }
+Addr8:    ptr                is n_addr_8                   [ ptr = ~n_addr_8; ] { ptr2:2 = ptr; export ptr2; }
 
 # Return pointers to code memory
-Ip:       "IP"               is op0_15=0xFFFF              { ptr:2 = IP; export *[code]:2 ptr; }
-Addr16:   ptr                is n_addr_16                  [ ptr = ~n_addr_16; ] { export *[code]:2 ptr; }
+Ip:       "IP"               is op0_15=0xFFFF              { export IP; }
+Addr16:   ptr                is n_addr_16                  [ ptr = ~n_addr_16; ] { ptr2:2 = ptr; export ptr2; }
 
 # Return immediate values
-Data8:    imm8               is n_data_8                   [ imm8 = ~n_data_8; ] { tmp:1 = imm8; export tmp; }
-Data8m:   imm8               is n_data_8_m                 [ imm8 = ~n_data_8_m; ] { tmp:1 = imm8; export tmp; }
+Data8:    imm8               is n_data_8                   [ imm8 = ~n_data_8; ] { res:1 = imm8; export res; }
+Data8m:   imm8               is n_data_8_m                 [ imm8 = ~n_data_8_m; ] { res:1 = imm8; export res; }
 
 # Jump/Call condition codes
 
