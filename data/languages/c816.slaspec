@@ -108,28 +108,32 @@ macro pop(ret) {
 ################################################################
 # C816 addressing modes
 
-IndOff8:  (ix, offset_8)     is ix & offset_8              { ptr = ix + offset_8; res = *[data]:1 ptr; export res; }
-IndOff8:  (ix)               is ix & offset_8=0            { ptr = ix; res = *[data]:1 ptr; export res; }
+# Return pointers to data memory
+IndOff8:  (ix, offset_8)     is ix & offset_8              { ptr = ix + offset_8; export ptr;  }
+IndOff8:  (ix)               is ix & offset_8=0            { ptr = ix; export ptr;  }
 
-IndR3:    (ix_r3, "R3")      is ix_r3                      { ptr = zext(R3) + ix_r3; res = *[data]:1 ptr; export res; }
-IndR3m:   (ixm, "R3")        is ixm                        { ptr = zext(R3) + ixm; res = *[data]:1 ptr; export res; }
+IndR3:    (ix_r3, "R3")      is ix_r3                      { ptr = zext(R3) + ix_r3; export ptr; }
+IndR3m:   (ixm, "R3")        is ixm                        { ptr = zext(R3) + ixm; export ptr; }
 
-IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0     { ptr:2 = ix; ix = ix + offset_8; res = *[data]:1 ptr; export res; }
-IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0    { ptr:2 = ixm; ixm = ixm + offset_8; res = *[data]:1 ptr; export res; }
+IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0     { ptr:2 = ix; ix = ix + offset_8; export ptr;  }
+IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0    { ptr:2 = ixm; ixm = ixm + offset_8; export ptr;  }
 
-IndP8:    (ix)+              is ix & offset_8=1 & sign=0   { ptr = ix; ix = ix + 1; res = *[data]:1 ptr; export res; }
-IndP8m:   (ixm)+             is ixm & offset_8=1 & sign=0  { ptr:2 = ixm; ixm = ixm + 1; res = *[data]:1 ptr; export res; }
+IndP8:    (ix)+              is ix & offset_8=1 & sign=0   { ptr = ix; ix = ix + 1; export ptr;  }
+IndP8m:   (ixm)+             is ixm & offset_8=1 & sign=0  { ptr:2 = ixm; ixm = ixm + 1; export ptr; }
 
-IndP8:    -(ix, off)         is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; res = *[data]:1 ptr; export res; }
-IndP8m:   -(ixm, off)        is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; res = *[data]:1 ptr; export res; }
+IndP8:    -(ix, off)         is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; export ptr; }
+IndP8m:   -(ixm, off)        is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; export ptr; }
 
-IndP8:    -(ix)              is ix & soffset_8=0xFF        { ix = ix - 1; ptr:2 = ix; res = *[data]:1 ptr; export res; }
-IndP8m:   -(ixm)             is ixm & soffset_8=0xFF       { ixm = ixm - 1; ptr:2 = ixm; res = *[data]:1 ptr; export res; }
+IndP8:    -(ix)              is ix & soffset_8=0xFF        { ix = ix - 1; ptr:2 = ix; export ptr; }
+IndP8m:   -(ixm)             is ixm & soffset_8=0xFF       { ixm = ixm - 1; ptr:2 = ixm; export ptr; }
 
-Addr16:   ptr                is n_addr_16                  [ ptr = ~n_addr_16; ] { export *[code]:2 ptr; }
-Addr8:    ptr                is n_addr_8                   [ ptr = ~n_addr_8; ] { export *[data]:1 ptr; }
+Addr8:    ptr                is n_addr_8                   [ ptr = ~n_addr_8; ] { export ptr; }
+
+# Return pointers to code memory
 Ip:       "IP"               is op0_15=0xFFFF              { ptr:2 = IP; export *[code]:2 ptr; }
+Addr16:   ptr                is n_addr_16                  [ ptr = ~n_addr_16; ] { export *[code]:2 ptr; }
 
+# Return immediate values
 Data8:    imm8               is n_data_8                   [ imm8 = ~n_data_8; ] { tmp:1 = imm8; export tmp; }
 Data8m:   imm8               is n_data_8_m                 [ imm8 = ~n_data_8_m; ] { tmp:1 = imm8; export tmp; }
 
@@ -410,7 +414,7 @@ define pcodeop freq;
 # 1 - ALU Indexed offset
 :^AluOp reg,IndOff8    is op19_3=0b011 & reg & IndOff8 & AluOp {
   _ALUd = reg;
-  _ALUs = IndOff8;
+  _ALUs = *[data]:1 IndOff8;
   build AluOp;
   reg = AluOp;
 }
@@ -418,7 +422,7 @@ define pcodeop freq;
 # 2 - ALU Indexed pre or post-modified
 :^AluOp reg,IndP8      is op19_3=0b010 & reg & IndP8 & AluOp {
   _ALUd = reg;
-  _ALUs = IndP8;
+  _ALUs = *[data]:1 IndP8;
   build AluOp;
   reg = AluOp;
 }
@@ -442,7 +446,7 @@ define pcodeop freq;
 # 5 - ALU with R3 offset
 :^AluOp reg,IndR3     is op17_5=0b00011 & reg & IndR3 & AluOp {
   _ALUd = reg;
-  _ALUs = IndR3;
+  _ALUs = * [data]:1 IndR3;
   build AluOp;
   reg = AluOp;
 }
@@ -450,7 +454,7 @@ define pcodeop freq;
 # 6 - ALU immediate address
 :^AluOp reg,Addr8     is op17_5=0b00010 & reg & Addr8 & AluOp {
   _ALUd = reg;
-  _ALUs = Addr8;
+  _ALUs = *[data]:1 Addr8;
   build AluOp;
   reg = AluOp;
 }
@@ -460,22 +464,27 @@ define pcodeop freq;
 
 # 7 - MOVE with R3 offset
 :MOVE IndR3m,reg         is op14_8=0b00001110 & IndR3m & reg {
+  * [data] IndR3m = reg;
 }
 
 # 8 - MOVE with pre or post modification
 :MOVE IndP8m,reg         is op14_8=0b00001101 & IndP8m & reg {
+  * [data] IndP8m = reg;
 }
 
 # 9 - MOVE with immediate offset (??)
 :MOVE IndOff8,reg        is op14_8=0b00001011 & IndOff8 & reg {
+  * [data] IndOff8 = reg;
 }
 
 # 10 - MOVE immediate address
 :MOVE Addr8,reg          is op12_10=0b0000011011 & Addr8 & reg {
+  * [data] Addr8 = reg;
 }
 
 # 10 - MOVE immediate address & data
 :MOVE Addr8,Data8m       is op16_6=0 & Addr8 & Data8m {
+  * [data] Addr8 = Data8m;
 }
 
 # Stack instructions
