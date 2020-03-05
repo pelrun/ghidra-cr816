@@ -12,7 +12,7 @@ define space stack    type=ram_space      size=1 wordsize=2;
 define register offset=0x00 size=1 [ A R0 R1 R2 R3 STAT ];
 define register offset=0x10 size=1 [ IPL IPH I0L I0H I1L I1H I2L I2H I3L I3H ];
 define register offset=0x10 size=2 [ IP I0 I1 I2 I3 ];
-define register offset=0x20 size=1 [ _C _V _SF _SE SP ];
+define register offset=0x20 size=1 [ _F SP _ALUd _ALUs];
 define register offset=0x40 size=2 [ PC ];
 
 define bitrange
@@ -26,10 +26,15 @@ define bitrange
   IE2=STAT[7,1]
 ;
 
-# Fake Registers used for pcode control
-define register offset=0x60 size=1 [
-  DECOMPILE_MODE
-];
+@define V_flag 	"_F[0,1]"
+@define C_flag 	"_F[1,1]"
+@define SF_flag "_F[2,1]"
+@define SE_flag "_F[3,1]"
+
+# # Fake Registers used for pcode control
+# define register offset=0x60 size=1 [
+#   DECOMPILE_MODE
+# ];
 
 define register offset=0x70 size=4 [
   contextreg
@@ -41,12 +46,15 @@ define context contextreg
 
 define token opbyte (24)
   op0_22        = (0,21)
+  op0_15        = (0,15)
+  op2_6         = (2,7)
+  op4_18        = (4,21)
+  op9_13        = (9,21)
   op19_3        = (19,21)
   op17_5        = (17,21)
   op16_6        = (16,21)
   op14_8        = (14,21)
   op12_10       = (12,21)
-  op4_18        = (4,21)
   reg           = (8,11)
   reg_op2       = (8,11)
   reg_op1       = (4,7)
@@ -65,6 +73,7 @@ define token opbyte (24)
   n_data_8_m    = (8,15)
   alu_op_5      = (12,16)
   divn_4        = (0,3)
+  pmd_1         = (8,8)
 ;
 
 attach variables [ reg reg_res reg_op1 reg_op2 ] [ I0L I0H I1L I1H I2L I2H I3L I3H IPL IPH STAT R3 R2 R1 R0 A ];
@@ -76,9 +85,7 @@ attach names [ alu_op_5 ] [ CMPA CMP AND SUBS SUBD SUBDC MULA SUBSC XOR _ MOVE O
 ################################################################
 # Pseudo Instructions
 ################################################################
-define pcodeop halt;
-define pcodeop program_memory_dump;
-define pcodeop freq;
+
 
 ################################################################
 # Macros
@@ -87,287 +94,369 @@ define pcodeop freq;
 macro push(val) {
   SP = SP + 1;
   *[stack]SP = val;
-  _SF = (SP > 5);
-  _SE = 0;
+  $(SF_flag) = (SP > 5);
+  $(SE_flag) = 0;
 }
 
 macro pop(ret) {
   ret = *[stack]SP;
   SP = SP - 1;
-  _SF = 0;
-  _SE = SP == 0;
+  $(SF_flag) = 0;
+  $(SE_flag) = SP == 0;
 }
-
-# macro setResultFlags(result) {
-# 	$(Z_flag) = (result == 0);
-# 	$(S_flag) = (result s< 0);
-# }
-
-# macro additionFlags(operand1, operand2) {
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask)) & (AFmask + 1)) != 0;
-# 	$(PV_flag) = scarry(operand1, operand2);
-# 	$(N_flag) = 0;
-# 	$(C_flag) = carry(operand1, operand2);
-# }
-
-# macro additionFlagsNoPV(operand1, operand2) {
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask)) & (AFmask + 1)) != 0;
-# #	$(PV_flag) is not affected
-# 	$(N_flag) = 0;
-# 	$(C_flag) = carry(operand1, operand2);
-# }
-
-# macro additionWithCarry(operand1, operand2, result) {
-# 	local Ccopy = zext($(C_flag));
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) + (operand2 & AFmask) + Ccopy) & (AFmask + 1)) != 0;
-# 	$(PV_flag) = scarry(operand1, operand2);
-# 	$(N_flag) = 0;
-# 	$(C_flag) = carry(operand1, operand2);
-# 	local tempResult = operand1 + operand2;
-# 	$(C_flag) = $(C_flag) || carry(tempResult, Ccopy);
-# 	$(PV_flag) = $(PV_flag) ^^ scarry(tempResult, Ccopy);
-# 	result = tempResult + Ccopy;
-# }
-
-# macro subtractionFlags(operand1, operand2) {
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask)) & (AFmask + 1)) != 0;
-# 	$(PV_flag) = sborrow(operand1, operand2);
-# 	$(N_flag) = 1;
-# 	$(C_flag) = operand1 < operand2;
-# }
-
-# macro subtractionFlagsNoC(operand1, operand2) {
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask)) & (AFmask + 1)) != 0;
-# 	$(PV_flag) = sborrow(operand1, operand2);
-# 	$(N_flag) = 1;
-# #	$(C_flag) is not affected
-# }
-
-# macro subtractionWithCarry(operand1, operand2, result) {
-# 	local Ccopy = zext($(C_flag));
-# 	local AFmask = -1 >> 4;
-# 	$(H_flag) = (((operand1 & AFmask) - (operand2 & AFmask) - Ccopy) & (AFmask + 1)) != 0;
-# 	$(PV_flag) = sborrow(operand1, operand2);
-# 	$(N_flag) = 1;
-# 	$(C_flag) = operand1 < operand2;
-# 	local tempResult = operand1 - operand2;
-# 	$(C_flag) = $(C_flag) || (tempResult < Ccopy);
-# 	$(PV_flag) = $(PV_flag) ^^ sborrow(tempResult, Ccopy);
-# 	result = tempResult - Ccopy;
-# }
-
-# macro setSubtractFlags(op1,op2) {
-# 	$(C_flag) = (op1 < op2);
-# }
-
-# # places the parity bit of the given byte in out_parity_bit
-# # the upper 7 bits of out_parity_bit are cleared
-# macro setParity(in_byte) {
-# 	local tmp = in_byte ^ (in_byte >> 1);
-# 	tmp =  tmp ^ (tmp >> 2);
-# 	tmp = (tmp ^ (tmp >> 4)) & 1;
-# 	$(PV_flag) = (tmp == 0);
-
-# #     $(PV_flag) = hasEvenParity(in_byte);
-# }
-
-# macro ioWrite(addr,val) {
-#    *[io]:1 addr = val;
-# }
-
-# macro ioRead(addr,dest) {
-#    dest = *[io]:1 addr;
-# }
-
-# macro push16(val16) {
-# 	SP = SP - 2;
-# 	*:2 SP = val16;
-# }
-
-# macro pop16(ret16) {
-# 	ret16 = *:2 SP;
-# 	SP = SP + 2;
-# }
-
-# macro swap(val16) {
-# 	ptr:$(PTRSIZE) = SP;
-# 	tmp:2 = *:2 ptr;
-# 	*:2 ptr = val16;
-# 	val16 = tmp;
-# }
-
-# macro MemRead(dest,off) {
-#    	ptr:$(PTRSIZE) = off;
-# 	dest = * ptr;
-# }
-
-# macro MemStore(off,val) {
-#    	ptr:$(PTRSIZE) = off;
-# 	* ptr = val;
-# }
-
-# macro JumpToLoc(off) {
-# 	ptr:$(PTRSIZE) = off;
-# 	goto [ptr];
-# }
 
 ################################################################
 # C816 addressing modes
 
-IndOff8:  (ix, offset_8)     is ix & offset_8       { ptr = ix + offset_8; export *:1 ptr; }
-IndOff8:  (ix)               is ix & offset_8=0     { ptr = ix; export *:1 ptr; }
+IndOff8:  (ix, offset_8)     is ix & offset_8              { ptr = ix + offset_8; res = *[data]:1 ptr; export res; }
+IndOff8:  (ix)               is ix & offset_8=0            { ptr = ix; res = *[data]:1 ptr; export res; }
 
-IndR3:    (ix_r3, R3)        is ix_r3               { ptr = ix_r3 + R3; export *:1 ptr; }
-IndR3m:   (ixm, R3)          is ixm                 { ptr = ixm + R3; export *:1 ptr; }
+IndR3:    (ix_r3, "R3")      is ix_r3                      { ptr = zext(R3) + ix_r3; res = *[data]:1 ptr; export res; }
+IndR3m:   (ixm, "R3")        is ixm                        { ptr = zext(R3) + ixm; res = *[data]:1 ptr; export res; }
 
-IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0   { ptr:2 = ix; ix = ix + offset_8; export *:1 ptr; }
-IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0  { ptr:2 = ixm; ixm = ixm + offset_8; export *:1 ptr; }
+IndP8:    (ix, offset_8)+    is ix & offset_8 & sign=0     { ptr:2 = ix; ix = ix + offset_8; res = *[data]:1 ptr; export res; }
+IndP8m:   (ixm, offset_8)+   is ixm & offset_8 & sign=0    { ptr:2 = ixm; ixm = ixm + offset_8; res = *[data]:1 ptr; export res; }
 
-IndP8:    (ix)+          is ix & offset_8=1 & sign=0     { ptr = ix; ix = ix + 1; export *:1 ptr; }
-IndP8m:   (ixm)+         is ixm & offset_8=1 & sign=0    { ptr:2 = ixm; ixm = ixm + 1; export *:1 ptr; }
+IndP8:    (ix)+              is ix & offset_8=1 & sign=0   { ptr = ix; ix = ix + 1; res = *[data]:1 ptr; export res; }
+IndP8m:   (ixm)+             is ixm & offset_8=1 & sign=0  { ptr:2 = ixm; ixm = ixm + 1; res = *[data]:1 ptr; export res; }
 
-IndP8:    -(ix, off)     is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; export *:1 ptr; }
-IndP8m:   -(ixm, off)    is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; export *:1 ptr; }
+IndP8:    -(ix, off)         is ix & soffset_8 & sign=1    [ off = 0 - soffset_8; ] { ix = ix - off; ptr = ix; res = *[data]:1 ptr; export res; }
+IndP8m:   -(ixm, off)        is ixm & soffset_8 & sign=1   [ off = 0 - soffset_8; ] { ixm = ixm - off; ptr = ixm; res = *[data]:1 ptr; export res; }
 
-IndP8:    -(ix)          is ix & soffset_8=1 & sign=1   { ix = ix - 1; ptr:2 = ix; export *:1 ptr; }
-IndP8m:   -(ixm)         is ixm & soffset_8=1 & sign=1  { ixm = ixm - 1; ptr:2 = ixm; export * ptr; }
+IndP8:    -(ix)              is ix & soffset_8=0xFF        { ix = ix - 1; ptr:2 = ix; res = *[data]:1 ptr; export res; }
+IndP8m:   -(ixm)             is ixm & soffset_8=0xFF       { ixm = ixm - 1; ptr:2 = ixm; res = *[data]:1 ptr; export res; }
 
-Addr16:   ptr                 is n_addr_16        [ ptr = ~n_addr_16; ] { export *:1 ptr; }
-Addr8:    ptr                 is n_addr_8         [ ptr = ~n_addr_8; ] { export *:1 ptr; }
+Addr16:   ptr                is n_addr_16                  [ ptr = ~n_addr_16; ] { export *[code]:2 ptr; }
+Addr8:    ptr                is n_addr_8                   [ ptr = ~n_addr_8; ] { export *[data]:1 ptr; }
+Ip:       "IP"               is op0_15=0xFFFF              { ptr:2 = IP; export *[code]:2 ptr; }
 
-Data8:    imm8                 is n_data_8         [ imm8 = ~n_data_8; ] { tmp:1 = imm8; export tmp; }
-Data8m:   imm8                 is n_data_8_m       [ imm8 = ~n_data_8_m; ] { tmp:1 = imm8; export tmp; }
+Data8:    imm8               is n_data_8                   [ imm8 = ~n_data_8; ] { tmp:1 = imm8; export tmp; }
+Data8m:   imm8               is n_data_8_m                 [ imm8 = ~n_data_8_m; ] { tmp:1 = imm8; export tmp; }
+
+# Jump/Call condition codes
 
 with : cmp_flag=0 {
-cc: "CC"  is cc_3=0x0 { c = (_C == 0); export c; }
-cc: "VC"  is cc_3=0x1 { c = (_V == 0); export c; }
+cc: "CC"  is cc_3=0x0 { c = !$(C_flag); export c; }
+cc: "VC"  is cc_3=0x1 { c = !$(V_flag); export c; }
 cc: "ZC"  is cc_3=0x2 { c = (A != 0); export c; }
-cc: "CS"  is cc_3=0x4 { c = _C; export c; }
-cc: "VS"  is cc_3=0x5 { c = _V; export c; }
+cc: "CS"  is cc_3=0x4 { c = $(C_flag); export c; }
+cc: "VS"  is cc_3=0x5 { c = $(V_flag); export c; }
 cc: "ZS"  is cc_3=0x6 { c = (A == 0); export c; }
 }
 
 with : cmp_flag=1 {
-cc: "GT"  is cc_3=0x0 { c = (_C == 0); export c; }
-cc: "GE"  is cc_3=0x1 { c = (_V == 0); export c; }
+cc: "GT"  is cc_3=0x0 { c = !$(C_flag); export c; }
+cc: "GE"  is cc_3=0x1 { c = !$(V_flag); export c; }
 cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
-cc: "LE"  is cc_3=0x4 { c = _C; export c; }
-cc: "LT"  is cc_3=0x5 { c = _V; export c; }
+cc: "LE"  is cc_3=0x4 { c = $(C_flag); export c; }
+cc: "LT"  is cc_3=0x5 { c = $(V_flag); export c; }
 cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
 }
 
 cc: "UMP" is cc_3=0x3 { c:1 = 1; export c; }
 cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 
+#################################################
+# ALU operations
+
+# add without carry
+AluOp:"ADD"       is alu_op_5=12 {
+  local tmp:2 = zext(_ALUd) + zext(_ALUs);
+  A = tmp:1;
+  $(C_flag) = tmp[8,1];
+  $(V_flag) = tmp[7,1];
+  export A;
+}
+
+# add with carry
+AluOp:"ADDC"      is alu_op_5=13 {
+  local tmp:2 = zext(_ALUd) + zext(_ALUs) + zext($(C_flag));
+  A = tmp:1;
+  $(C_flag) = tmp[8,1];
+  $(V_flag) = tmp[7,1];
+  export A;
+}
+
+# bitwise AND
+AluOp:"AND"       is alu_op_5=2 {
+  A = _ALUd & _ALUs;
+  export A;
+}
+
+# Unsigned Compare
+AluOp:"CMP"       is alu_op_5=1 {
+  A = _ALUs - _ALUd;
+  $(C_flag) = _ALUd <= _ALUs;
+  $(V_flag) = $(C_flag) & (_ALUs==_ALUd);
+  export _ALUd;
+}
+
+# Signed compare
+AluOp:"CMPA"      is alu_op_5=0 {
+  A = _ALUs - _ALUd;
+  $(C_flag) = _ALUd s<= _ALUs;
+  $(V_flag) = $(C_flag) & (_ALUs==_ALUd);
+  export _ALUd;
+}
+
+# Conditional move if carry clear
+AluOp:"CMVD"      is alu_op_5=18 {
+  A = _ALUs;
+  if ($(C_flag)==0) goto <skip>;
+  _ALUd=_ALUs;
+<skip>
+  export _ALUd;
+}
+
+# Conditional move if carry set
+AluOp:"CMVS"      is alu_op_5=19 {
+  A = _ALUs;
+  if ($(C_flag)!=0) goto <skip>;
+  _ALUd=_ALUs;
+<skip>
+  export _ALUd;
+}
+
+# Ones complement
+AluOp:"CPL1"      is alu_op_5=24 { A = ~_ALUs; export A; }
+
+# Twos complement
+AluOp:"CPL2"      is alu_op_5=25 {
+  A = ~_ALUs+1;
+  $(C_flag) = (_ALUs==0);
+  $(V_flag) = (_ALUs==0x80);
+  export A;
+}
+
+# Twos complement with carry
+AluOp:"CPL2C"     is alu_op_5=28 {
+  A = ~_ALUs + $(C_flag);
+  $(C_flag) = (_ALUs==0);
+  $(V_flag) = (_ALUs==0x80);
+  export A;
+}
+
+# Decrement without carry
+AluOp:"DEC"       is alu_op_5=27 {
+  A = _ALUs - 1;
+  $(C_flag) = (A!=0xFF);
+  $(V_flag) = (_ALUs==0x80);
+  export A;
+}
+
+# Decrement with carry
+AluOp:"DECC"      is alu_op_5=31 {
+  A = _ALUs + $(C_flag) - 1;
+  $(C_flag) = (A!=0xFF);
+  $(V_flag) = (_ALUs==0x80);
+  export A;
+}
+
+# Increment without carry
+AluOp:"INC"       is alu_op_5=17 {
+  A = _ALUs + 1;
+  $(C_flag) = (A==0);
+  $(V_flag) = (_ALUs==0x7F);
+  export A;
+}
+
+# Increment with carry
+AluOp:"INCC"      is alu_op_5=21 {
+  A = _ALUs + $(C_flag);
+  $(C_flag) = (A==0);
+  $(V_flag) = (_ALUs==0x7F);
+  export A;
+}
+
+# Data Move
+AluOp:"MOVE"      is alu_op_5=10 {
+  A = _ALUs;
+  export A;
+}
+
+# Unsigned Multiplication
+AluOp:"MUL"       is alu_op_5=14 {
+  local tmp:2 = zext(_ALUd) * zext(_ALUs);
+  A = tmp:1; # LSB
+  _ALUs = tmp[8,8]; # MSB
+  export _ALUs;
+}
+
+# Signed Multiplication
+AluOp:"MULA"      is alu_op_5=6 {
+  local tmp:2 = sext(_ALUd) * sext(_ALUs);
+  A = tmp:1; # LSB
+  _ALUs = tmp[8,8]; # MSB
+  export _ALUs;
+}
+
+# bitwise OR
+AluOp:"OR"        is alu_op_5=11 {
+  A = _ALUd | _ALUs;
+  export A;
+}
+
+# Logical shift left without carry
+AluOp:"SHL"       is alu_op_5=26 {
+  A = _ALUd << 1;
+  $(C_flag) = _ALUd[7,1];
+  $(V_flag) = (_ALUd[7,1] != A[7,1]); # not explicit in datasheet
+  export A;
+}
+
+# Logical shift left with carry
+AluOp:"SHLC"      is alu_op_5=30 {
+  A = (_ALUd << 1) | $(C_flag);
+  $(C_flag) = _ALUd[7,1];
+  $(V_flag) = (_ALUd[7,1] != A[7,1]); # not explicit in datasheet
+  export A;
+}
+
+# Logical shift right without carry
+AluOp:"SHR"       is alu_op_5=22 {
+  A = _ALUd >> 1;
+  $(C_flag) = _ALUd[0,1];
+  $(V_flag) = 0; # not explicit in datasheet
+  export A;
+}
+
+# Arithmetic shift right
+AluOp:"SHRA"      is alu_op_5=16 {
+  A = _ALUd >> 1;
+  A[7,1] = _ALUd[7,1]; # sign extend
+  $(C_flag) = _ALUd[0,1];
+  $(V_flag) = 0;
+  export A;
+}
+
+# Logical shift right with carry
+AluOp:"SHRC"      is alu_op_5=20 {
+  A = (_ALUd >> 1) | ($(C_flag) << 7);
+  $(C_flag) = _ALUd[0,1];
+  $(V_flag) = 0; # not explicit in datasheet
+  export A;
+}
+
+# Subtract without carry (_ALUd - _ALUs)
+AluOp:"SUBD"      is alu_op_5=4 {
+  A = _ALUd - _ALUs;
+  export A;
+}
+
+# Subtract with carry (_ALUs - _ALUd)
+AluOp:"SUBDC"     is alu_op_5=5 {
+  A = _ALUs - _ALUd - (1 - $(C_flag));
+  export A;
+}
+
+# Subtract with carry (_ALUd - _ALUs)
+AluOp:"SUBS"      is alu_op_5=3 {
+  A = _ALUd - _ALUs;
+  export A;
+}
+
+# Subtract with carry (_ALUs - _ALUd)
+AluOp:"SUBSC"     is alu_op_5=7 {
+  A = _ALUs - _ALUd - (1 - $(C_flag));
+  export A;
+}
+
+# Test bit
+# Apparently only valid for mode 3
+AluOp:"TSTB"      is alu_op_5=15 {
+  A = _ALUd & (1 << _ALUs);
+  export A;
+}
+
+# bitwise XOR
+AluOp:"XOR"       is alu_op_5=8 {
+  A = _ALUd ^ _ALUs;
+  export A;
+}
+
 ################################################################
-# C816 ops
+# C816 instructions
+
+#############################################
+# Simple instructions
 
 :NOP                is op0_22=0b1111111111111111111111 {
 }
 
+define pcodeop halt;
 :HALT               is op0_22=0b0010111101111111111111 {
   halt();
 }
 
-:PMD "0"            is op0_22=0b0010111110111011111111 {
-  #program_memory_dump(0);
+define pcodeop program_memory_dump;
+:PMD "#"pmd_1          is op9_13=0b0010111110111 & pmd_1 {
+  # local tmp:1 = zext(pmd_1);
+  # program_memory_dump(tmp);
 }
 
-:PMD "1"            is op0_22=0b0010111110111111111111 {
-  #program_memory_dump(1);
+define pcodeop freq;
+:FREQ "#"divn_4        is op4_18=0b001011101111111111 & divn_4 {
+  # local tmp:1 = zext(divn_4);
+  # freq(tmp);
 }
 
 :SFLAG              is op0_22=0b0010110111111111111111 {
-  A = _C << 7 | (_C ^ _V) << 6 | _SF << 5 | _SE << 4;
+  A = $(C_flag) << 7 | ($(C_flag) ^ $(V_flag)) << 6 | $(SF_flag) << 5 | $(SE_flag) << 4;
 }
 
-:FREQ divn_4        is op4_18=0b001011101111111111 & divn_4 {
-  #freq(divn_4);
-}
-
-:RET                is op0_22=0b1111110011111111111111 {
-  local loc;
-  pop(loc);
-  ptr:1 = loc;
-  return [ptr];
-}
-
-:RETI               is op0_22=0b1111110001111111111111 {
-  local loc;
-  pop(loc);
-  #GIE = 1;
-  ptr:1 = loc;
-  return [ptr];
-}
-
-:POP                is op0_22=0b1111101011111111111111 {
-  pop(IP);
-}
-
-:PUSH               is op0_22=0b1011011111111111111111 {
-  push(IP);
-}
-
-:J^cc Addr16        is op19_3=0b110 & cc & Addr16 {
-  if (cc) goto Addr16;
-}
-
-:J^cc "IP"            is op19_3=0b100 & cc {
-  local ptr = *IP;
-  if (cc) goto [ptr];
-}
-
-:CALL Addr16        is op16_6=0b111001 & Addr16 {
-  push(PC+1);
-  goto Addr16;
-}
-
-:CALL "IP"            is op16_6=0b101001 & Addr16 {
-  push(PC+1);
-  goto [IP];
-}
-
-:CALLS Addr16       is op16_6=0b111010 & Addr16 {
-  IP = PC+1;
-  goto Addr16;
-}
-
-:CALLS "IP"           is op16_6=0b101010 & Addr16 {
-  ptr:1 = IP;
-  IP = PC+1;
-  goto [ptr];
-}
-
+############################################
 # ALU instructions:
 
 # 1 - ALU Indexed offset
-:^alu_op_5 reg,IndOff8    is op19_3=0b011 & reg & IndOff8 & alu_op_5 {
+:^AluOp reg,IndOff8    is op19_3=0b011 & reg & IndOff8 & AluOp {
+  _ALUd = reg;
+  _ALUs = IndOff8;
+  build AluOp;
+  reg = AluOp;
 }
 
 # 2 - ALU Indexed pre or post-modified
-:^alu_op_5 reg,IndP8      is op19_3=0b010 & reg & IndP8 & alu_op_5 {
+:^AluOp reg,IndP8      is op19_3=0b010 & reg & IndP8 & AluOp {
+  _ALUd = reg;
+  _ALUs = IndP8;
+  build AluOp;
+  reg = AluOp;
 }
 
 # 3 - ALU immediate data
-:^alu_op_5 reg,"#"Data8   is op17_5=0b00111 & reg & Data8 & alu_op_5 {
+:^AluOp reg,"#"Data8   is op17_5=0b00111 & reg & Data8 & AluOp {
+  _ALUd = reg;
+  _ALUs = Data8;
+  build AluOp;
+  reg = AluOp;
 }
 
 # 4 - ALU between registers
-:^alu_op_5 reg_res,reg_op1,reg_op2 is op17_5=0b00110 & reg_res & reg_op1 & reg_op2 & alu_op_5 {
+:^AluOp reg_res,reg_op1,reg_op2 is op17_5=0b00110 & reg_res & reg_op1 & reg_op2 & AluOp {
+  _ALUd = reg_op1;
+  _ALUs = reg_op2;
+  build AluOp;
+  reg_res = AluOp;
 }
 
 # 5 - ALU with R3 offset
-:^alu_op_5 reg,IndR3     is op17_5=0b00011 & reg & IndR3 & alu_op_5 {
+:^AluOp reg,IndR3     is op17_5=0b00011 & reg & IndR3 & AluOp {
+  _ALUd = reg;
+  _ALUs = IndR3;
+  build AluOp;
+  reg = AluOp;
 }
 
 # 6 - ALU immediate address
-:^alu_op_5 reg,Addr8     is op17_5=0b00010 & reg & Addr8 & alu_op_5 {
+:^AluOp reg,Addr8     is op17_5=0b00010 & reg & Addr8 & AluOp {
+  _ALUd = reg;
+  _ALUs = Addr8;
+  build AluOp;
+  reg = AluOp;
 }
+
+############################################
+# Memory store instructions
 
 # 7 - MOVE with R3 offset
 :MOVE IndR3m,reg         is op14_8=0b00001110 & IndR3m & reg {
@@ -389,9 +478,55 @@ cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 :MOVE Addr8,Data8m       is op16_6=0 & Addr8 & Data8m {
 }
 
-# :RET cc             is op6_2=0x3 & cc & bits0_3=0x0 {
-#   if (!cc) goto inst_next;
-#   pop16(PC);
-#   ptr:$(PTRSIZE) = PC;
-#   return [ptr];
-# }
+# Stack instructions
+
+:POP                is op0_22=0b1111101011111111111111 {
+  pop(IP);
+}
+
+:PUSH               is op0_22=0b1011011111111111111111 {
+  push(IP);
+}
+
+# Jump/Call instructions
+
+:J^cc Addr16        is op19_3=0b110 & cc & Addr16 {
+  if (cc) goto Addr16;
+}
+
+:J^cc Ip            is op19_3=0b100 & cc & Ip {
+  if (cc) goto Ip;
+}
+
+:CALL Addr16        is op16_6=0b111001 & Addr16 {
+  push(PC+1);
+  goto Addr16;
+}
+
+:CALL Ip            is op16_6=0b101001 & Ip {
+  push(PC+1);
+  goto Ip;
+}
+
+:CALLS Addr16       is op16_6=0b111010 & Addr16 {
+  IP = PC+1;
+  goto Addr16;
+}
+
+:CALLS Ip           is op16_6=0b101010 & Ip {
+  IP = PC+1;
+  goto Ip;
+}
+
+:RET                is op0_22=0b1111110011111111111111 {
+  local loc:2;
+  pop(loc);
+  return [loc];
+}
+
+:RETI               is op0_22=0b1111110001111111111111 {
+  local loc:2;
+  pop(loc);
+  STAT[5,1] = 1;
+  return [loc];
+}
