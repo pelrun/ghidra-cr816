@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<compiler_spec>
+  <global>
+    <range space="code"/>
+    <range space="data"/>
+    <range space="stack"/>
+  </global>
+  <default_proto>
+    <prototype name="unk" extrapop="unknown" stackshift="-2" strategy="register">
+      <input>
+      </input>
+      <output>
+      </output>
+      <unaffected>
+      </unaffected>
+      <localrange>
+      </localrange>
+    </prototype>
+  </default_proto>
+</compiler_spec>

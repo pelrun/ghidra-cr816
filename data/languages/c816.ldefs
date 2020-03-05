@@ -12,6 +12,5 @@
             id="c816:LE:16:default">
     <description>CoolRISC 816</description>
     <compiler name="default" spec="c816.cspec" id="default"/>
-    <external_name tool="gnu" name="c816"/>
   </language>
 </language_definitions>
