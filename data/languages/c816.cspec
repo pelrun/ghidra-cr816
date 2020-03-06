@@ -4,18 +4,32 @@
   <global>
     <range space="code"/>
     <range space="data"/>
-    <range space="stack"/>
   </global>
+  <stackpointer register="I3" space="data" growth="negative"/>
+  <returnaddress>
+    <register name="IP" />
+  </returnaddress>
   <default_proto>
-    <prototype name="unk" extrapop="unknown" stackshift="-2" strategy="register">
+    <prototype name="__stdcall" extrapop="2" stackshift="2" strategy="register">
       <input>
+        <pentry minsize="1" maxsize="2">
+          <register name="I0"/>
+        </pentry>
+        <pentry minsize="1" maxsize="2">
+          <register name="I1"/>
+        </pentry>
+        <pentry minsize="1" maxsize="2">
+          <register name="I2"/>
+        </pentry>
       </input>
       <output>
+        <pentry minsize="1" maxsize="2">
+          <register name="I0"/>
+        </pentry>
       </output>
       <unaffected>
+        <register name="SP"/>
       </unaffected>
-      <localrange>
-      </localrange>
     </prototype>
   </default_proto>
 </compiler_spec>
