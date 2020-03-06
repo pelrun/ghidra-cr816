@@ -10,7 +10,7 @@
     <register name="IP" />
   </returnaddress>
   <default_proto>
-    <prototype name="__stdcall" extrapop="2" stackshift="2" strategy="register">
+    <prototype name="__fastcall" extrapop="0" stackshift="0" strategy="register">
       <input>
         <pentry minsize="1" maxsize="2">
           <register name="I0"/>
@@ -27,9 +27,7 @@
           <register name="I0"/>
         </pentry>
       </output>
-      <unaffected>
-        <register name="SP"/>
-      </unaffected>
+
     </prototype>
   </default_proto>
 </compiler_spec>

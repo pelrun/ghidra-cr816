@@ -12,7 +12,7 @@ define space hw_stack    type=ram_space      size=1 wordsize=2;
 define register offset=0x00 size=1 [ A R0 R1 R2 R3 STAT ];
 define register offset=0x10 size=1 [ IPL IPH I0L I0H I1L I1H I2L I2H I3L I3H ];
 define register offset=0x10 size=2 [ IP I0 I1 I2 I3 ];
-define register offset=0x20 size=1 [ _F SP _ALUd _ALUs];
+define register offset=0x20 size=1 [ _F SP _ALUd _ALUs ];
 define register offset=0x40 size=2 [ PC ];
 
 # define bitrange
@@ -36,13 +36,13 @@ define register offset=0x40 size=2 [ PC ];
 #   DECOMPILE_MODE
 # ];
 
-define register offset=0x70 size=4 [
-  contextreg
-];
+# define register offset=0x70 size=4 [
+#   contextreg
+# ];
 
-define context contextreg
-  cmp_flag = (0,0) noflow
-;
+# define context contextreg
+#   cmp_flag = (0,0) noflow
+# ;
 
 define token opbyte (24)
   op0_22        = (0,21)
@@ -129,8 +129,8 @@ IndP8m:   -(ixm)             is ixm & offset_8=0xFF        { ixm = ixm - 1; ptr 
 Addr8:    inv                is n_addr_8                   [ inv = n_addr_8 ^ 0xFF; ] { ptr:2 = inv; export *[data]:1 ptr; }
 
 # Return pointers to code memory
-Ip:       "IP"               is op0_15=0xFFFF              { tmp = IP; export * [code]:2 tmp; }
-Addr16:   inv                is n_addr_16                  [ inv = n_addr_16 ^ 0xFFFF; ]  { ptr:2 = inv; export * [code]:2 ptr; }
+Ip:       "IP"               is op0_15=0xFFFF              { tmp = IP; export *[code]:2 tmp; }
+Addr16:   inv                is n_addr_16                  [ inv = n_addr_16 ^ 0xFFFF; ]  { ptr:2 = inv; export *[code]:2 ptr; }
 
 # Return immediate values
 Data8:    imm8               is n_data_8                   [ imm8 = n_data_8 ^ 0xFF; ] { res:1 = imm8; export res; }
@@ -138,23 +138,23 @@ Data8m:   imm8               is n_data_8_m                 [ imm8 = n_data_8_m ^
 
 # Jump/Call condition codes
 
-with : cmp_flag=0 {
+# with : cmp_flag=0 {
 cc: "CC"  is cc_3=0x0 { c = !$(C_flag); export c; }
 cc: "VC"  is cc_3=0x1 { c = !$(V_flag); export c; }
 cc: "ZC"  is cc_3=0x2 { c = (A != 0); export c; }
 cc: "CS"  is cc_3=0x4 { c = $(C_flag); export c; }
 cc: "VS"  is cc_3=0x5 { c = $(V_flag); export c; }
 cc: "ZS"  is cc_3=0x6 { c = (A == 0); export c; }
-}
+# }
 
-with : cmp_flag=1 {
-cc: "GT"  is cc_3=0x0 { c = !$(C_flag); export c; }
-cc: "GE"  is cc_3=0x1 { c = !$(V_flag); export c; }
-cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
-cc: "LE"  is cc_3=0x4 { c = $(C_flag); export c; }
-cc: "LT"  is cc_3=0x5 { c = $(V_flag); export c; }
-cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
-}
+# with : cmp_flag=1 {
+# cc: "GT"  is cc_3=0x0 { c = !$(C_flag); export c; }
+# cc: "GE"  is cc_3=0x1 { c = !$(V_flag); export c; }
+# cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
+# cc: "LE"  is cc_3=0x4 { c = $(C_flag); export c; }
+# cc: "LT"  is cc_3=0x5 { c = $(V_flag); export c; }
+# cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
+# }
 
 cc: "EV"  is cc_3=0x7 { c = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 
