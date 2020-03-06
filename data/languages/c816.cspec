@@ -12,22 +12,33 @@
   <default_proto>
     <prototype name="__fastcall" extrapop="0" stackshift="0" strategy="register">
       <input>
-        <pentry minsize="1" maxsize="2">
-          <register name="I0"/>
+        <pentry minsize="1" maxsize="1">
+          <register name="R3"/>
         </pentry>
-        <pentry minsize="1" maxsize="2">
-          <register name="I1"/>
+        <pentry minsize="1" maxsize="1">
+          <register name="R2"/>
         </pentry>
-        <pentry minsize="1" maxsize="2">
-          <register name="I2"/>
+        <pentry minsize="1" maxsize="1">
+          <register name="R1"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R0"/>
         </pentry>
       </input>
       <output>
-        <pentry minsize="1" maxsize="2">
-          <register name="I0"/>
+        <pentry minsize="1" maxsize="1">
+          <register name="R3"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R2"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R1"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R0"/>
         </pentry>
       </output>
-
     </prototype>
   </default_proto>
 </compiler_spec>
