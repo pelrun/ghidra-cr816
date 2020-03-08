@@ -38,12 +38,14 @@ define register offset=0x40 size=2 [ PC ];
 # define register offset=0x60 size=1 [
 #   DECOMPILE_MODE
 # ];
-# define register offset=0x70 size=4 [
-#   contextreg
-# ];
-# define context contextreg
-#   cmp_flag = (0,0) noflow
-# ;
+
+define register offset=0x70 size=4 [
+  contextreg
+];
+define context contextreg
+  cmp_mode = (0,0) noflow
+;
+
 define token opbyte (24)
 	op0_22     = ( 0,21)
 	op0_15     = ( 0,15)
@@ -130,7 +132,7 @@ Addr8:    inv   is n_addr_8      [ inv = n_addr_8 ^ 0xFF; ]     { export *[data]
 # Return pointers to code memory
 Ip:       "IP"  is op0_15=0xFFFF { export *[code] IP; }
 
-Addr16:   inv  is n_addr_16 [ inv = n_addr_16 ^ 0xFFFF; ] { export *[code] inv; }
+Addr16:   inv   is n_addr_16                            [ inv = n_addr_16 ^ 0xFFFF; ] { export *[code] inv; }
 
 # Return immediate values
 Data8:    imm8  is n_data_8      [ imm8 = n_data_8 ^ 0xFF; ] { res:1 = imm8; export res; }
@@ -138,23 +140,24 @@ Data8:    imm8  is n_data_8      [ imm8 = n_data_8 ^ 0xFF; ] { res:1 = imm8; exp
 Data8m:   imm8  is n_data_8_m    [ imm8 = n_data_8_m ^ 0xFF; ] { res:1 = imm8; export res; }
 
 # Jump/Call condition codes
-# with : cmp_flag=0 {
+with : cmp_mode=0 {
 cc: "CC"  is cc_3=0x0 { c:1 = !$(C_flag); export c; }
 cc: "VC"  is cc_3=0x1 { c:1 = !$(V_flag); export c; }
 cc: "ZC"  is cc_3=0x2 { c:1 = (A != 0); export c; }
 cc: "CS"  is cc_3=0x4 { c:1 = $(C_flag); export c; }
 cc: "VS"  is cc_3=0x5 { c:1 = $(V_flag); export c; }
 cc: "ZS"  is cc_3=0x6 { c:1 = (A == 0); export c; }
-# }
+}
 
-# with : cmp_flag=1 {
-# cc: "GT"  is cc_3=0x0 { c = !$(C_flag); export c; }
-# cc: "GE"  is cc_3=0x1 { c = !$(V_flag); export c; }
-# cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
-# cc: "LE"  is cc_3=0x4 { c = $(C_flag); export c; }
-# cc: "LT"  is cc_3=0x5 { c = $(V_flag); export c; }
-# cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
-# }
+# Use alternative names immediately after a CMP/CMPA
+with : cmp_mode=1 {
+cc: "GT"  is cc_3=0x0 { c = !$(C_flag); export c; }
+cc: "GE"  is cc_3=0x1 { c = !$(V_flag); export c; }
+cc: "NE"  is cc_3=0x2 { c = (A != 0); export c; }
+cc: "LE"  is cc_3=0x4 { c = $(C_flag); export c; }
+cc: "LT"  is cc_3=0x5 { c = $(V_flag); export c; }
+cc: "EQ"  is cc_3=0x6 { c = (A == 0); export c; }
+}
 
 cc: "EV"  is cc_3=0x7 { c:1 = STAT[0,2]; export c; } # STAT.EV0 | STAT.EV1
 
@@ -185,7 +188,7 @@ AluOp:"AND"    is alu_op_5=2  {
 }
 
 # Unsigned Compare
-AluOp:"CMP"    is alu_op_5=1  {
+AluOp:"CMP"    is alu_op_5=1  [ cmp_mode = 1; globalset(inst_next, cmp_mode); ] {
 	A = _ALUs - _ALUd;
 	$(C_flag) = _ALUd <= _ALUs;
 	$(V_flag) = $(C_flag) & (_ALUs==_ALUd);
@@ -193,7 +196,7 @@ AluOp:"CMP"    is alu_op_5=1  {
 }
 
 # Signed compare
-AluOp:"CMPA"   is alu_op_5=0  {
+AluOp:"CMPA"   is alu_op_5=0  [ cmp_mode = 1; globalset(inst_next, cmp_mode); ] {
 	A = _ALUs - _ALUd;
 	$(C_flag) = _ALUd s<= _ALUs;
 	$(V_flag) = $(C_flag) & (_ALUs==_ALUd);
@@ -446,6 +449,12 @@ define pcodeop freq;
 	reg_res = AluOp;
 }
 
+# Special case mode 4 MOVE, as reg_op2 is unused
+:MOVE reg_res,reg_op1         is op17_5=0b00110 & alu_op_5=10 & reg_res & reg_op1 {
+	A = reg_op1;
+  reg_res = reg_op1;
+}
+
 # 5 - ALU with R3 offset
 :^AluOp reg,IndR3             is op17_5=0b00011 & reg & IndR3 & AluOp {
 	_ALUd = reg;
@@ -506,15 +515,11 @@ define pcodeop freq;
 	goto Addr16;
 }
 
-:J^cc Addr16                  is op19_3=0b110 & cc & Addr16 {
+:J^cc Addr16                  is op19_3=0b110 & cc & Addr16   [ globalset(inst_next, cmp_mode); ] {
 	if (cc) goto Addr16;
 }
 
-:JUMP Ip                      is op19_3=0b100 & cc_3=0x3 & Ip {
-	return [Ip];
-}
-
-:J^cc Ip                      is op19_3=0b100 & cc & Ip {
+:J^cc Ip                      is op19_3=0b100 & cc & Ip       [ globalset(inst_next, cmp_mode); ] {
 	if (cc) goto Ip;
 }
 
@@ -542,6 +547,11 @@ define pcodeop freq;
 	local loc:2;
 	pop(loc);
 	return [loc];
+}
+
+# Technically JUMP IP
+:RETS                         is op19_3=0b100 & cc_3=0x3 & Ip {
+	return [Ip];
 }
 
 :RETI                         is op0_22=0b1111110001111111111111 {

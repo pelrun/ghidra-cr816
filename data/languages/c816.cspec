@@ -5,27 +5,43 @@
     <range space="code"/>
     <range space="data"/>
   </global>
+
+  <nohighptr>
+    <range space="code"/>
+  </nohighptr>
+
   <readonly>
     <range space="code" />
   </readonly>
+
   <stackpointer register="I3" space="data" growth="negative"/>
+
+  <data_organization>
+     <pointer_size value="2" />
+     <short_size value="2" />
+     <integer_size value="2" />
+     <long_size value="4" />
+     <float_size value="4" />
+     <double_size value="4" />
+  </data_organization>
+
   <default_proto>
-    <prototype name="default" extrapop="0" stackshift="0" strategy="register">
+    <prototype name="def" extrapop="0" stackshift="0" strategy="standard">
       <returnaddress>
         <register name="IP" />
       </returnaddress>
       <input>
-        <pentry minsize="1" maxsize="1">
-          <register name="R3"/>
+        <pentry minsize="1" maxsize="2">
+          <register name="I0"/>
+        </pentry>
+        <pentry minsize="1" maxsize="2">
+          <register name="I1"/>
+        </pentry>
+        <pentry minsize="1" maxsize="2">
+          <register name="I2"/>
         </pentry>
         <pentry minsize="1" maxsize="1">
-          <register name="R2"/>
-        </pentry>
-        <pentry minsize="1" maxsize="1">
-          <register name="R1"/>
-        </pentry>
-        <pentry minsize="1" maxsize="1">
-          <register name="R0"/>
+          <addr space="stack" offset="0" />
         </pentry>
       </input>
       <output>
@@ -44,4 +60,41 @@
       </output>
     </prototype>
   </default_proto>
+
+  <prototype name="rom_calls" extrapop="0" stackshift="0" strategy="standard">
+    <returnaddress>
+      <register name="IP" />
+    </returnaddress>
+    <input>
+      <pentry minsize="1" maxsize="1">
+        <register name="R3"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R2"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R1"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R0"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <addr space="stack" offset="0" />
+      </pentry>
+    </input>
+    <output>
+      <pentry minsize="1" maxsize="1">
+        <register name="R3"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R2"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R1"/>
+      </pentry>
+      <pentry minsize="1" maxsize="1">
+        <register name="R0"/>
+      </pentry>
+    </output>
+  </prototype>
 </compiler_spec>
