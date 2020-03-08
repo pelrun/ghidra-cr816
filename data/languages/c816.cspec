@@ -5,12 +5,15 @@
     <range space="code"/>
     <range space="data"/>
   </global>
+  <readonly>
+    <range space="code" />
+  </readonly>
   <stackpointer register="I3" space="data" growth="negative"/>
-  <returnaddress>
-    <register name="IP" />
-  </returnaddress>
   <default_proto>
-    <prototype name="__fastcall" extrapop="0" stackshift="0" strategy="register">
+    <prototype name="default" extrapop="0" stackshift="0" strategy="register">
+      <returnaddress>
+        <register name="IP" />
+      </returnaddress>
       <input>
         <pentry minsize="1" maxsize="1">
           <register name="R3"/>

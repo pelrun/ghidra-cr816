@@ -2,7 +2,6 @@
 
 <processor_spec>
   <programcounter register="PC"/>
-
   <default_symbols>
     <symbol name="RESET" address="code:0000" entry="true"/>
     <symbol name="IN1" address="code:0001" entry="true"/>
