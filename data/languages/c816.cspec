@@ -26,25 +26,40 @@
   </data_organization>
 
   <default_proto>
-    <prototype name="def" extrapop="0" stackshift="0" strategy="standard">
+    <prototype name="__stdcall" extrapop="0" stackshift="0" strategy="register">
       <returnaddress>
         <register name="IP" />
       </returnaddress>
       <input>
-        <pentry minsize="1" maxsize="2">
-          <register name="I0"/>
-        </pentry>
-        <pentry minsize="1" maxsize="2">
+        <pentry minsize="2" maxsize="2">
           <register name="I1"/>
         </pentry>
-        <pentry minsize="1" maxsize="2">
+        <pentry minsize="2" maxsize="2">
           <register name="I2"/>
         </pentry>
+        <pentry minsize="2" maxsize="2">
+          <register name="I0"/>
+        </pentry>
         <pentry minsize="1" maxsize="1">
+          <register name="R3"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R2"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R1"/>
+        </pentry>
+        <pentry minsize="1" maxsize="1">
+          <register name="R0"/>
+        </pentry>
+        <pentry minsize="1" maxsize="4">
           <addr space="stack" offset="0" />
         </pentry>
       </input>
       <output>
+        <pentry minsize="2" maxsize="2">
+          <addr space="join" piece1="R3" piece2="R2" />
+        </pentry>
         <pentry minsize="1" maxsize="1">
           <register name="R3"/>
         </pentry>
@@ -58,14 +73,26 @@
           <register name="R0"/>
         </pentry>
       </output>
+      <unaffected>
+        <register name="I3" />
+      </unaffected>
     </prototype>
   </default_proto>
 
-  <prototype name="rom_calls" extrapop="0" stackshift="0" strategy="standard">
+  <prototype name="__romcalls" extrapop="0" stackshift="0" strategy="standard">
     <returnaddress>
       <register name="IP" />
     </returnaddress>
     <input>
+      <pentry minsize="4" maxsize="4">
+        <addr space="join" piece1="R3" piece2="R2" piece3="R1" piece4="R0" />
+      </pentry>
+      <pentry minsize="2" maxsize="2">
+        <addr space="join" piece1="R3" piece2="R2" />
+      </pentry>
+      <pentry minsize="2" maxsize="2">
+        <addr space="join" piece1="R1" piece2="R0" />
+      </pentry>
       <pentry minsize="1" maxsize="1">
         <register name="R3"/>
       </pentry>
@@ -78,7 +105,7 @@
       <pentry minsize="1" maxsize="1">
         <register name="R0"/>
       </pentry>
-      <pentry minsize="1" maxsize="1">
+      <pentry minsize="1" maxsize="4">
         <addr space="stack" offset="0" />
       </pentry>
     </input>

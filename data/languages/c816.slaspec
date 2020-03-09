@@ -5,8 +5,8 @@ define endian=little;
 define alignment=3;
 
 # Instruction words are 22 bits wide
-define space code     type=ram_space      size=2 wordsize=3 default;
-define space data     type=ram_space      size=2;
+define space code     type=ram_space      size=2 wordsize=3;
+define space data     type=ram_space      size=2 default;
 define space register type=register_space size=1;
 define space hw_stack type=ram_space      size=1 wordsize=2;
 
@@ -132,7 +132,7 @@ Addr8:    inv   is n_addr_8      [ inv = n_addr_8 ^ 0xFF; ]     { export *[data]
 # Return pointers to code memory
 Ip:       "IP"  is op0_15=0xFFFF { export *[code] IP; }
 
-Addr16:   inv   is n_addr_16                            [ inv = n_addr_16 ^ 0xFFFF; ] { export *[code] inv; }
+Addr16:   inv   is n_addr_16     [ inv = n_addr_16 ^ 0xFFFF; ] { export *[code] inv; }
 
 # Return immediate values
 Data8:    imm8  is n_data_8      [ imm8 = n_data_8 ^ 0xFF; ] { res:1 = imm8; export res; }
