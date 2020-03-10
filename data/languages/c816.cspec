@@ -124,4 +124,186 @@
       </pentry>
     </output>
   </prototype>
+
+  <callfixup name="mulhi3">
+    <!-- multiplies two signed integers -->
+    <target name="mulhi3"/>
+    <pcode>
+      <body><![CDATA[
+      tmp_a:2 = R3 << 8 | R2;
+      tmp_b:2 = R1 << 8 | R0;
+      out:2 = tmp_a * tmp_b;
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="mulhisi3">
+    <target name="mulhisi3"/>
+    <pcode>
+      <body><![CDATA[
+      tmp_a:4 = sext(R3 << 8 | R2);
+      tmp_b:4 = sext(R1 << 8 | R0);
+      out:4 = tmp_a * tmp_b;
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <!-- mulsi3 -->
+
+  <callfixup name="umulhisi3">
+    <target name="umulhisi3"/>
+    <pcode>
+      <body><![CDATA[
+      tmp_a:4 = zext(R3 << 8 | R2);
+      tmp_b:4 = zext(R1 << 8 | R0);
+      out:4 = tmp_a * tmp_b;
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+
+  <callfixup name="floatqisf2">
+    <target name="floatqisf2"/>
+    <pcode>
+      <body><![CDATA[
+      if (A==0) goto <unsigned>;
+      out = int2float(sext(R0));
+      goto <out>;
+    <unsigned>
+      out = int2float(zext(R0));
+    <out>
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="floathisf2">
+    <target name="floathisf2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = sext(R2 << 8 | R1);
+      out = int2float(tmp);
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="floatsisf2">
+    <target name="floatsisf2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = zext(R3 << 24 | R2 << 16 | R1 << 8 | R0);
+      out = int2float(tmp);
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="fix_truncsfhi2">
+    <target name="fix_truncsfhi2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
+      out = trunc(tmp);
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="fixuns_truncsfhi2">
+    <target name="fixuns_truncsfhi2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
+      out = trunc(tmp);
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="fix_truncsfsi2">
+    <target name="fix_truncsfsi2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
+      out = trunc(tmp);
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="fixuns_truncsfsi2">
+    <target name="fixuns_truncsfsi2"/>
+    <pcode>
+      <body><![CDATA[
+      tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
+      out = trunc(tmp);
+      R3 = out[24,8];
+      R2 = out[16,8];
+      R1 = out[8,8];
+      R0 = out[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="divmodhi4">
+    <!-- divides two signed integers, returning quotient and remainder FIXME uses stack not R3:R2-->
+    <target name="divmodhi4"/>
+    <pcode>
+      <body><![CDATA[
+      tmp_a:2 = R3 << 8 | R2;
+      tmp_b:2 = R1 << 8 | R0;
+      r:2 = tmp_a s% tmp_b;
+      R3 = r[8,8];
+      R2 = r[0,8];
+      q:2 = tmp_a s/ tmp_b;
+      R1 = q[8,8];
+      R0 = q[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <callfixup name="udivmodhi4">
+    <!-- divides two signed integers, returning quotient and remainder FIXME uses stack not R3:R2-->
+    <target name="udivmodhi4"/>
+    <pcode>
+      <body><![CDATA[
+      tmp_a:2 = R3 << 8 | R2;
+      tmp_b:2 = R1 << 8 | R0;
+      r:2 = tmp_a % tmp_b;
+      R3 = r[8,8];
+      R2 = r[0,8];
+      q:2 = tmp_a / tmp_b;
+      R1 = q[8,8];
+      R0 = q[0,8];
+      ]]></body>
+    </pcode>
+  </callfixup>
+
+  <!-- divmodsi4 uses stack -->
+  <!-- divsf3 uses stack -->
 </compiler_spec>
