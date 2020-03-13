@@ -1,0 +1,43 @@
+# This is part of the -*- Makefile -*- for gcc
+CROSS_LIBGCC1 = libgcc1-asm.a
+LIB1ASMSRC = c816/lib1funcs.asm
+LIB1ASMFUNCS  = addsf3 addtqf3 cmpsf3 cmptqf3
+LIB1ASMFUNCS += divmodhi4 divmodqi4 divmodsi4 divsf3 divtqf3
+LIB1ASMFUNCS += fix_truncsfhi2 fix_truncsfqi2 fix_truncsfsi2 fixuns_truncsfhi2
+LIB1ASMFUNCS += fixuns_truncsfqi2 fixuns_truncsfsi2
+LIB1ASMFUNCS += floathisf2 floatqisf2 floatsisf2 modqi3 mulhi3 mulhisi3
+LIB1ASMFUNCS += mulsf3 mulsi3 multqf3 udivmodhi4 udivmodqi4 udivmodsi4
+LIB1ASMFUNCS += umodqi3 umulhisi3
+LIB1ASMFUNCS += _bswapsi2 _bswapdi2
+LIB1ASMFUNCS += floatunsitqf
+#LIB1ASMFUNCS += cmphi3 cmpsi3 cmpunshi3 cmpunssi3 ftruncsf2 movstrhi
+
+#LIB2FUNCS_EXTRA = $(srcdir)/config/c816/floatunsitqf.c
+
+STMP_FIXPROTO =
+
+# We do not have DF or DI types, so fake out the libgcc2 compilation.
+TARGET_LIBGCC2_CFLAGS = -DDF=SF -DDI=SI -D__DF__=__SF__ -D__DI__=__SI__ -I$(srcdir)/config/c816 
+
+# Startup files
+CRT0_S = $(srcdir)/config/c816/crt0.s
+MCRT0_S = $(srcdir)/config/c816/crt0.s
+
+# Target specific header files
+LIMITS_H = limits-c816.h
+
+limits-c816.h: $(srcdir)/config/c816/limits-c816.h msc816.inc
+	cp $(srcdir)/config/c816/limits-c816.h limits-c816.h
+
+MULTILIB_OPTIONS = mlibsoftcall
+MULTILIB_DIRNAMES = softlib
+
+LIBGCC = stmp-softlib
+INSTALL_LIBGCC = install-softlib
+#INSTALL_HEADERS =
+#LIBGCC1_TEST =
+
+EXTRA_PARTS = crt0.o msc816.inc
+
+$(T)msc816.inc: $(srcdir)/config/c816/msc816.inc
+	cp $(srcdir)/config/c816/msc816.inc $(T)msc816.inc

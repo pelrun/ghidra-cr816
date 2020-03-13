@@ -1,0 +1,2475 @@
+;;******************************************************************************
+;;
+;; Instruction definitions and templates for the CoolRISC processors.
+;;
+;; Christian Iseli - Stéphane CLOG (GCC V4.x)
+;;
+;;******************************************************************************
+
+
+;; -----------------------------------------------------------------
+;; Predicates
+;; -----------------------------------------------------------------
+
+;; CF avr/predicates.md !!!
+
+(define_predicate "immediate_inc_operand"
+  (match_code "const_int,const")
+{
+   return (GET_CODE(op) == CONST_INT
+   && (INTVAL(op) == 1 || INTVAL(op) == -1));
+})
+
+(define_predicate "data_reg_operand"
+   (match_code "reg,subreg")
+{
+   if( REGNO(op) != REG_0)
+      return 0;
+   return register_operand(op, mode);
+})
+
+(define_predicate "data_reg1_operand"
+   (match_code "reg,subreg")
+{
+   if( REGNO(op) != REG_1)
+      return 0;
+   return register_operand(op, mode);
+})
+
+(define_predicate "data_reg2_operand"
+   (match_code "reg,subreg")
+{
+   if( REGNO(op) != REG_2)
+      return 0;
+   return register_operand(op, mode);
+})
+
+(define_predicate "data_reg3_operand"
+   (match_code "reg,subreg")
+{
+   if( REGNO(op) != REG_3)
+      return 0;
+   return register_operand(op, mode);
+})
+
+(define_predicate "romidx_operand"
+   (match_code "reg,subreg")
+{
+   if( REGNO(op) != ROM_IDX)
+      return 0;
+   return register_operand(op, mode);
+})
+
+(define_predicate "commutative_operator"
+   (match_code "const_int,const_double,const,symbol_ref,label_ref,subreg,reg,mem")
+{
+   if (GET_MODE(op) != mode || GET_CODE(op) == MULT)
+      return 0;
+   return (GET_RTX_CLASS(GET_CODE(op)) == 'c');
+})
+
+(define_predicate "c816_logical_operator"
+;;   (match_code "const_int,const_double,const,symbol_ref,label_ref,subreg,reg,mem")
+   (match_code "and,ior,xor")
+{
+   enum rtx_code code = GET_CODE(op);
+;;   if (GET_MODE(op) != mode)
+;;      return 0;
+
+   return code == AND || code == IOR || code == XOR;
+})
+
+;; -----------------------------------------------------------------
+;; Attributes
+;; -----------------------------------------------------------------
+
+(define_attr "type" "normal,lib" (const_string "normal"))
+
+
+;; -----------------------------------------------------------------
+;; Move instructions
+;; -----------------------------------------------------------------
+
+;; movqi
+(define_insn "movqi"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+        (match_operand:QI 1 "general_operand" "g"))]
+  ""
+  "*
+{
+  return output_move(insn, operands);
+}")
+
+;; movhi
+(define_insn "movhi"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+        (match_operand:HI 1 "general_operand" "g"))]
+  ""
+  "*
+{
+  return output_move(insn, operands);
+}")
+
+;; movsi
+(define_insn "movsi"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+        (match_operand:SI 1 "general_operand" "g"))]
+  ""
+  "*
+{
+  return output_move(insn, operands);
+}")
+
+;; movsf
+(define_insn "movsf"
+  [(set (match_operand:SF 0 "general_operand" "=g")
+        (match_operand:SF 1 "general_operand" "g"))]
+  ""
+  "*
+{
+  return output_move(insn, operands);
+}")
+
+
+;; -----------------------------------------------------------------
+;; Addition instructions
+;; -----------------------------------------------------------------
+
+;; addqi3
+(define_expand "addqi3"
+  [(set  (match_operand:QI 0 "general_operand" "")
+         (plus:QI (match_operand:QI 1 "general_operand" "")
+                  (match_operand:QI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+(define_insn "*addqi3_inc"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+   (plus:QI (match_operand:QI 1 "general_operand" "%rm")
+            (match_operand:QI 2 "immediate_inc_operand" "I")))]
+  ""
+  "*
+{
+  int to_reg = GET_CODE(operands[0]) == REG;
+  if (INTVAL(operands[2]) == 1)
+    return to_reg
+      ? \"INC  %0,%1\"
+      : \"INC  %%a,%1\;MOVE   %0,%%a\";
+  return to_reg
+    ? \"DEC %0,%1\"
+    : \"DEC %%a,%1\;MOVE   %0,%%a\";
+}")
+
+;; addhi3
+(define_insn "addhi3"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+   (plus:HI (match_operand:HI 1 "general_operand" "%g")
+       (match_operand:HI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_add_wide(insn, operands);
+}")
+
+;; addsi3
+(define_insn "addsi3"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (plus:SI (match_operand:SI 1 "general_operand" "%g")
+       (match_operand:SI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_add_wide(insn, operands);
+}")
+
+;; addsf3
+(define_expand "addsf3"
+  [(set (reg:SF 1)
+   (plus:SF (match_operand:SF 1 "general_operand" "")
+       (match_operand:SF 2 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(PLUS, SFmode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*addsf3"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (plus:SF (match_operand:SF 1 "general_operand" "g")
+       (match_operand:SF 2 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 1, \"addsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*addsf3_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (plus:SF (match_operand:SF 1 "general_operand" "g")
+       (match_operand:SF 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 1, \"addsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Subtraction instructions. Both versions (i.e. op1 <- op1 - op2 and
+;; op2 <- op1 - op2) exist on the CoolRISC 816.
+;; -----------------------------------------------------------------
+
+;; subqi3
+(define_insn "subqi3"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+   (minus:QI (match_operand:QI 1 "general_operand" "g")
+        (match_operand:QI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_sub_wide(insn, operands);
+}")
+
+;; subhi3
+(define_insn "subhi3"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+   (minus:HI (match_operand:HI 1 "general_operand" "g")
+        (match_operand:HI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_sub_wide(insn, operands);
+}")
+
+;; subsi3
+(define_insn "subsi3"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (minus:SI (match_operand:SI 1 "general_operand" "g")
+        (match_operand:SI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_sub_wide(insn, operands);
+}")
+
+;; subsf3
+(define_expand "subsf3"
+  [(set (reg:SF 1)
+   (minus:SF (match_operand:SF 1 "general_operand" "")
+        (match_operand:SF 2 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(MINUS, SFmode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*subsf3"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (minus:SF (match_operand:SF 1 "general_operand" "g")
+        (match_operand:SF 2 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 0, \"addsf3\", 1, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*subsf3_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (minus:SF (match_operand:SF 1 "general_operand" "g")
+        (match_operand:SF 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 0, \"addsf3\", 1, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Two-complement instructions.
+;; -----------------------------------------------------------------
+
+;; negqi2
+(define_insn "negqi2"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+   (neg:QI (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  operands[2] = operands[1];
+  operands[1] = const0_rtx;
+  return output_sub_wide(insn, operands);
+}")
+
+;; neghi2
+(define_insn "neghi2"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+   (neg:HI (match_operand:HI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  operands[2] = operands[1];
+  operands[1] = const0_rtx;
+  return output_sub_wide(insn, operands);
+}")
+
+;; negsi2
+(define_insn "negsi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (neg:SI (match_operand:SI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  operands[2] = operands[1];
+  operands[1] = const0_rtx;
+  return output_sub_wide(insn, operands);
+}")
+
+
+
+;; negsf2
+(define_insn "negsf2"
+  [(set (match_operand:SF 0 "general_operand" "=g")
+   (neg:SF (match_operand:SF 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_fneg(insn, operands);
+}")
+
+
+;; -----------------------------------------------------------------
+;; Multiplication instructions
+;; -----------------------------------------------------------------
+
+;; mulqi3
+(define_insn "mulqi3"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+   (mult:QI (match_operand:QI 1 "general_operand" "%g")
+       (match_operand:QI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_mult(insn, operands, 0, 0xff);
+}")
+
+;; mulqihi3
+;; CI - FIXME - We might want to extend these patterns to accept a
+;; single sign-extend operand, in a similar way as done for the div
+;; patterns.
+(define_expand "mulqihi3"
+  [(set (match_operand:HI 0 "general_operand" "")
+   (mult:HI (sign_extend:HI
+        (match_operand:QI 1 "nonimmediate_operand" ""))
+       (sign_extend:HI
+        (match_operand:QI 2 "nonimmediate_operand" ""))))]
+  ""
+  "")
+
+(define_insn "*mulqicst3"
+  [(set (match_operand:HI 0 "general_operand" "=r")
+   (mult:HI (sign_extend:HI (match_operand:QI 1 "nonimmediate_operand" "%g"))
+       (match_operand:HI 2 "immediate_operand" "i")))]
+  "INTVAL(operands[2]) >= -128 && INTVAL(operands[2]) <= 127"
+  "*
+{
+  return output_mult(insn, operands, 1, 0);
+}")
+
+(define_insn "*mulqihi3"
+  [(set (match_operand:HI 0 "general_operand" "=r")
+   (mult:HI (sign_extend:HI (match_operand:QI 1 "nonimmediate_operand" "%g"))
+       (sign_extend:HI (match_operand:QI 2 "nonimmediate_operand" "g"))))]
+  ""
+  "*
+{
+  return output_mult(insn, operands, 1, 0);
+}")
+
+;; umulqihi3
+(define_expand "umulqihi3"
+  [(set (match_operand:HI 0 "general_operand" "")
+   (mult:HI (zero_extend:HI
+        (match_operand:QI 1 "nonimmediate_operand" ""))
+       (zero_extend:HI
+        (match_operand:QI 2 "nonimmediate_operand" ""))))]
+  ""
+  "")
+
+(define_insn "*umulqicst3"
+  [(set (match_operand:HI 0 "general_operand" "=r")
+   (mult:HI (zero_extend:HI (match_operand:QI 1 "nonimmediate_operand" "%g"))
+       (match_operand:HI 2 "immediate_operand" "i")))]
+  "INTVAL(operands[2]) >= 0 && INTVAL(operands[2]) <= 0xff"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xff);
+}")
+
+(define_insn "*umulqihi3"
+  [(set (match_operand:HI 0 "general_operand" "=r")
+   (mult:HI (zero_extend:HI (match_operand:QI 1 "nonimmediate_operand" "%g"))
+       (zero_extend:HI (match_operand:QI 2 "nonimmediate_operand" "g"))))]
+  ""
+  "*
+{
+  return output_mult(insn, operands, 0, 0xff);
+}")
+
+;; mulhi3
+(define_expand "mulhi3"
+  [(parallel [(set (reg:HI 3)
+         (mult:HI (match_operand:HI 1 "general_operand" "")
+             (match_operand:HI 2 "general_operand" "")))
+         (clobber (reg:HI 1))])
+   (set (match_operand:HI 0 "general_operand" "")
+   (reg:HI 3))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, HImode, REG_2),
+             gen_rtx(MULT, HImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, HImode, REG_0)),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, HImode, REG_2)));
+    DONE;
+  }
+}")
+
+(define_insn "*mulhi3"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (mult:HI (match_operand:HI 1 "general_operand" "%g")
+       (match_operand:HI 2 "general_operand" "g")))
+   (clobber (reg:HI 1))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*mulhi3_s"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (mult:HI (match_operand:HI 1 "general_operand" "%g")
+       (match_operand:HI 2 "general_operand" "g")))
+   (clobber (reg:HI 1))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+;; mulhisi3
+(define_expand "mulhisi3"
+  [(set (reg:SI 1)
+   (mult:SI (sign_extend:SI (match_operand:HI 1 "nonimmediate_operand" ""))
+       (sign_extend:SI (match_operand:HI 2 "nonimmediate_operand" ""))))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SImode, REG_0),
+             gen_rtx(MULT, SImode,
+                gen_rtx(SIGN_EXTEND, SImode, operands[1]),
+                gen_rtx(SIGN_EXTEND, SImode, operands[2]))),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*mulhicst3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (sign_extend:SI (match_operand:HI 1 "nonimmediate_operand" "%g"))
+       (match_operand:SI 2 "immediate_operand" "i")))]
+  "INTVAL(operands[2]) >= -0x8000 && INTVAL(operands[2]) <= 0x7fff"
+  "*
+{
+  return output_mult(insn, operands, 1, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*mulhisi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (sign_extend:SI (match_operand:HI 1 "nonimmediate_operand" "%g"))
+       (sign_extend:SI (match_operand:HI 2 "nonimmediate_operand" "g"))))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 1, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*mulhisi3_s"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (sign_extend:SI (match_operand:HI 1 "nonimmediate_operand" "%g"))
+       (sign_extend:SI (match_operand:HI 2 "nonimmediate_operand" "g"))))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 1, 0);
+}"
+  [(set_attr "type" "lib")])
+
+;; umulhisi3
+(define_expand "umulhisi3"
+  [(set (reg:SI 1)
+   (mult:SI (zero_extend:SI (match_operand:HI 1 "nonimmediate_operand" ""))
+       (zero_extend:SI (match_operand:HI 2 "nonimmediate_operand" ""))))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SImode, REG_0),
+             gen_rtx(MULT, SImode,
+                gen_rtx(ZERO_EXTEND, SImode, operands[1]),
+                gen_rtx(ZERO_EXTEND, SImode, operands[2]))),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*umulhicst3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (zero_extend:SI (match_operand:HI 1 "nonimmediate_operand" "%g"))
+       (match_operand:SI 2 "immediate_operand" "i")))]
+  "INTVAL(operands[2]) >= 0 && INTVAL(operands[2]) <= 0xffff"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*umulhisi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (zero_extend:SI (match_operand:HI 1 "general_operand" "%g"))
+       (zero_extend:SI (match_operand:HI 2 "general_operand" "g"))))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*umulhisi3_s"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (zero_extend:SI (match_operand:HI 1 "general_operand" "%g"))
+       (zero_extend:SI (match_operand:HI 2 "general_operand" "g"))))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+;; mulsi3
+(define_expand "mulsi3"
+  [(set (reg:SI 1)
+   (mult:SI (match_operand:SI 1 "general_operand" "")
+       (match_operand:SI 2 "general_operand" "")))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SImode, REG_0),
+             gen_rtx(MULT, SImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*mulsi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (match_operand:SI 1 "general_operand" "%g")
+       (match_operand:SI 2 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffffffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*mulsi3_s"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (mult:SI (match_operand:SI 1 "general_operand" "%g")
+       (match_operand:SI 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_mult(insn, operands, 0, 0xffffffff);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; mulsf3
+(define_expand "mulsf3"
+  [(set (reg:SF 1)
+   (mult:SF (match_operand:SF 1 "general_operand" "")
+       (match_operand:SF 2 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(MULT, SFmode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*mulsf3"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (mult:SF (match_operand:SF 1 "general_operand" "g")
+       (match_operand:SF 2 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 1, \"mulsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*mulsf3_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (mult:SF (match_operand:SF 1 "general_operand" "g")
+       (match_operand:SF 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 1, \"mulsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Division instructions
+;; -----------------------------------------------------------------
+
+;; divmodqi3
+(define_expand "divmodqi4"
+  [(parallel [(set (reg:QI 4)
+         (div:QI (match_operand:QI 1 "general_operand" "")
+             (match_operand:QI 2 "general_operand" "")))
+         (set (reg:QI 2)
+         (mod:QI (match_dup 1) (match_dup 2)))
+         (clobber (reg:QI 1))
+         (clobber (reg:QI 3))])
+   (set (match_operand:QI 0 "general_operand" "") (reg:QI 4))
+   (set (match_operand:QI 3 "general_operand" "") (reg:QI 2))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(5,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, QImode, REG_3),
+             gen_rtx(DIV, QImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, QImode, REG_1),
+             gen_rtx(MOD, QImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, QImode, REG_0)),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, QImode, REG_2)),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, QImode, REG_3)));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[3],
+            gen_rtx(REG, QImode, REG_1)));
+    DONE;
+  }
+}")
+
+(define_insn "*divmodqi4"
+  [(set (match_operand:QI 0 "data_reg3_operand" "=y")
+   (div:QI (match_operand:QI 1 "general_operand" "g")
+       (match_operand:QI 2 "general_operand" "g")))
+   (set (match_operand:QI 3 "data_reg1_operand" "=b")
+   (mod:QI (match_dup 1) (match_dup 2)))
+   (clobber (reg:QI 1))
+   (clobber (reg:QI 3))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodqi4_s"
+  [(set (match_operand:QI 0 "data_reg3_operand" "=y")
+   (div:QI (match_operand:QI 1 "general_operand" "g")
+       (match_operand:QI 2 "general_operand" "g")))
+   (set (match_operand:QI 3 "data_reg1_operand" "=b")
+   (mod:QI (match_dup 1) (match_dup 2)))
+   (clobber (reg:QI 1))
+   (clobber (reg:QI 3))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+;; udivmodqi3
+(define_expand "udivmodqi4"
+  [(parallel [(set (reg:QI 4)
+         (udiv:QI (match_operand:QI 1 "general_operand" "")
+             (match_operand:QI 2 "general_operand" "")))
+         (set (reg:QI 2)
+         (umod:QI (match_dup 1) (match_dup 2)))
+         (clobber (reg:QI 1))
+         (clobber (reg:QI 3))])
+   (set (match_operand:QI 0 "general_operand" "") (reg:QI 4))
+   (set (match_operand:QI 3 "general_operand" "") (reg:QI 2))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(5,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, QImode, REG_3),
+             gen_rtx(UDIV, QImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, QImode, REG_1),
+             gen_rtx(UMOD, QImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, QImode, REG_0)),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, QImode, REG_2)),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, QImode, REG_3)));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[3],
+            gen_rtx(REG, QImode, REG_1)));
+    DONE;
+  }
+}")
+
+(define_insn "*udivmodqi4"
+  [(set (match_operand:QI 0 "data_reg3_operand" "=y")
+   (udiv:QI (match_operand:QI 1 "general_operand" "g")
+       (match_operand:QI 2 "general_operand" "g")))
+   (set (match_operand:QI 3 "data_reg1_operand" "=b")
+   (umod:QI (match_dup 1) (match_dup 2)))
+   (clobber (reg:QI 1))
+   (clobber (reg:QI 3))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*udivmodqi4_s"
+  [(set (match_operand:QI 0 "data_reg3_operand" "=y")
+   (udiv:QI (match_operand:QI 1 "general_operand" "g")
+       (match_operand:QI 2 "general_operand" "g")))
+   (set (match_operand:QI 3 "data_reg1_operand" "=b")
+   (umod:QI (match_dup 1) (match_dup 2)))
+   (clobber (reg:QI 1))
+   (clobber (reg:QI 3))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+;; divmodhi4
+(define_expand "divmodhi4"
+  [(parallel [(set (reg:HI 3)
+         (div:HI (match_operand:HI 1 "general_operand" "")
+            (match_operand:HI 2 "general_operand" "")))
+         (set (reg:HI 1)
+         (mod:HI (match_dup 1) (match_dup 2)))])
+   (set (match_operand:HI 0 "general_operand" "")
+   (reg:HI 3))
+   (set (match_operand:HI 3 "general_operand" "")
+   (reg:HI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, HImode, REG_2),
+             gen_rtx(DIV, HImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, HImode, REG_0),
+             gen_rtx(MOD, HImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, HImode, REG_2)));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[3],
+            gen_rtx(REG, HImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*divmodqihi4_i1"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (match_operand:HI 1 "immediate_operand" "i")
+      (sign_extend:HI (match_operand:QI 2 "general_operand" "g"))))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (match_dup 1)
+      (sign_extend:HI (match_dup 2))))]
+  "INTVAL(operands[1]) >= -128 && INTVAL(operands[1]) <= 127"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodqihi4_i2"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g"))
+      (match_operand:HI 2 "immediate_operand" "i")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (sign_extend:HI (match_dup 1))
+      (match_dup 2)))]
+  "INTVAL(operands[2]) >= -128 && INTVAL(operands[2]) <= 127"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodqihi4_s1"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g"))
+      (match_operand:HI 2 "general_operand" "g")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (sign_extend:HI (match_dup 1))
+      (match_dup 2)))]
+  ""
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodqihi4_s2"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (match_operand:HI 1 "general_operand" "g")
+      (sign_extend:HI (match_operand:QI 2 "general_operand" "g"))))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (match_dup 1)
+      (sign_extend:HI (match_dup 2))))]
+  ""
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodqihi4"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g"))
+      (sign_extend:HI (match_operand:QI 2 "general_operand" "g"))))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (sign_extend:HI (match_dup 1))
+      (sign_extend:HI (match_dup 2))))]
+  ""
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodhi4"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (match_operand:HI 1 "general_operand" "g")
+      (match_operand:HI 2 "general_operand" "g")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (match_dup 1) (match_dup 2)))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodhi4"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (div:HI (match_operand:HI 1 "general_operand" "g")
+      (match_operand:HI 2 "general_operand" "g")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (mod:HI (match_dup 1) (match_dup 2)))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+;; udivmodhi4
+(define_expand "udivmodhi4"
+  [(parallel [(set (reg:HI 3)
+         (udiv:HI (match_operand:HI 1 "general_operand" "")
+             (match_operand:HI 2 "general_operand" "")))
+         (set (reg:HI 1)
+         (umod:HI (match_dup 1) (match_dup 2)))])
+   (set (match_operand:HI 0 "general_operand" "")
+   (reg:HI 3))
+   (set (match_operand:HI 3 "general_operand" "")
+   (reg:HI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, HImode, REG_2),
+             gen_rtx(UDIV, HImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, HImode, REG_0),
+             gen_rtx(UMOD, HImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, HImode, REG_2)));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[3],
+            gen_rtx(REG, HImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*udivmodhi4"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (udiv:HI (match_operand:HI 1 "general_operand" "g")
+       (match_operand:HI 2 "general_operand" "g")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (umod:HI (match_dup 1) (match_dup 2)))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*udivmodhi4_s"
+  [(set (match_operand:HI 0 "data_reg2_operand" "=e")
+   (udiv:HI (match_operand:HI 1 "general_operand" "g")
+       (match_operand:HI 2 "general_operand" "g")))
+   (set (match_operand:HI 3 "data_reg_operand" "=w")
+   (umod:HI (match_dup 1) (match_dup 2)))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+;; divmodsi4
+(define_expand "divmodsi4"
+  [(parallel [(set (reg:SI 1)
+         (div:SI (match_operand:SI 1 "general_operand" "")
+            (match_operand:SI 2 "general_operand" "")))
+         (set (match_operand:SI 3 "general_operand" "")
+         (mod:SI (match_dup 1) (match_dup 2)))])
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SImode, REG_0),
+             gen_rtx(DIV, SImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             operands[3],
+             gen_rtx(MOD, SImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*divmodsi4"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (div:SI (match_operand:SI 1 "general_operand" "g")
+      (match_operand:SI 2 "general_operand" "g")))
+   (set (match_operand:SI 3 "general_operand" "=g")
+   (mod:SI (match_dup 1) (match_dup 2)))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divmodsi4_s"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (div:SI (match_operand:SI 1 "general_operand" "g")
+      (match_operand:SI 2 "general_operand" "g")))
+   (set (match_operand:SI 3 "general_operand" "=g")
+   (mod:SI (match_dup 1) (match_dup 2)))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+;; udivmodsi4
+(define_expand "udivmodsi4"
+  [(parallel [(set (reg:SI 1)
+         (udiv:SI (match_operand:SI 1 "general_operand" "")
+             (match_operand:SI 2 "general_operand" "")))
+         (set (match_operand:SI 3 "general_operand" "")
+         (umod:SI (match_dup 1) (match_dup 2)))])
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SImode, REG_0),
+             gen_rtx(UDIV, SImode,
+                operands[1], operands[2])),
+          gen_rtx(SET, VOIDmode,
+             operands[3],
+             gen_rtx(UMOD, SImode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SImode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*udivmodsi4"
+  [(set     (match_operand:SI 0 "data_reg_operand" "=f")
+   (udiv:SI (match_operand:SI 1 "general_operand" "g")
+            (match_operand:SI 2 "general_operand" "g")))
+   (set     (match_operand:SI 3 "general_operand" "=g")
+   (umod:SI (match_dup 1)
+            (match_dup 2)))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*udivmodsi4"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (udiv:SI (match_operand:SI 1 "general_operand" "g")
+       (match_operand:SI 2 "general_operand" "g")))
+   (set (match_operand:SI 3 "general_operand" "=g")
+   (umod:SI (match_dup 1) (match_dup 2)))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_divmod(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+
+;; divsf3
+(define_expand "divsf3"
+  [(set (reg:SF 1)
+   (div:SF (match_operand:SF 1 "general_operand" "")
+      (match_operand:SF 2 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(DIV, SFmode,
+                operands[1], operands[2])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*divsf3"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (div:SF (match_operand:SF 1 "general_operand" "g")
+      (match_operand:SF 2 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 0, \"divsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*divsf3_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (div:SF (match_operand:SF 1 "general_operand" "g")
+      (match_operand:SF 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_libcall(insn, operands, 1, 1, 0, \"divsf3\", 0, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Logic operation instructions.
+;; -----------------------------------------------------------------
+
+;; andqi3
+(define_expand "andqi3"
+  [(set (match_operand:QI 0 "general_operand" "")
+        (and:QI (match_operand:QI 1 "general_operand" "")
+                (match_operand:QI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; andhi3
+;;(define_expand "andhi3"
+;;  [(set (match_operand:HI 0 "general_operand" "")
+;;        (and:HI (match_operand:HI 1 "general_operand" "")
+;;                (match_operand:HI 2 "general_operand" "")))]
+;;  ""
+;;  "")
+  
+(define_insn "*andhi3_internal"
+  [(set (match_operand:HI 0 "general_operand" "=r,r")
+        (and:HI (match_operand:HI 1 "general_operand" "%r,r")
+                (match_operand:HI 2 "general_operand" "r,i")))]
+  ""
+  "*
+{
+   return \"; andhi3_internal\\n\";
+}")
+
+;; andsi3
+(define_expand "andsi3"
+  [(set    (match_operand:SI 0 "general_operand" "")
+           (and:SI (match_operand:SI 1 "general_operand" "")
+                   (match_operand:SI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; iorqi3
+(define_expand "iorqi3"
+  [(set (match_operand:QI 0 "general_operand" "")
+        (ior:QI (match_operand:QI 1 "general_operand" "")
+                (match_operand:QI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; iorhi3
+(define_expand "iorhi3"
+  [(set (match_operand:HI 0 "general_operand" "")
+        (ior:HI (match_operand:HI 1 "general_operand" "")
+                (match_operand:HI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; iorsi3
+(define_expand "iorsi3"
+  [(set (match_operand:SI 0 "general_operand" "")
+        (ior:SI (match_operand:SI 1 "general_operand" "")
+                (match_operand:SI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; xorqi3
+(define_expand "xorqi3"
+  [(set (match_operand:QI 0 "general_operand" "")
+        (xor:QI (match_operand:QI 1 "general_operand" "")
+                (match_operand:QI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; xorhi3
+(define_expand "xorhi3"
+  [(set (match_operand:HI 0 "general_operand" "")
+        (xor:HI (match_operand:HI 1 "general_operand" "")
+                (match_operand:HI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; xorsi3
+(define_expand "xorsi3"
+  [(set (match_operand:SI 0 "general_operand" "")
+        (xor:SI (match_operand:SI 1 "general_operand" "")
+                (match_operand:SI 2 "general_operand" "")))]
+  ""
+  "DONE;")
+
+;; one_cmplqi2
+(define_insn "one_cmplqi2"
+  [(set (match_operand:QI 0 "general_operand" "=r")
+        (not:QI (match_operand:QI 1 "general_operand" "rm")))]
+  ""
+  "CPL1  %0,%1")
+
+;; one_cmplhi2
+(define_insn "one_cmplhi2"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+        (not:HI (match_operand:HI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_not(insn, operands);
+}")
+
+;; one_cmplsi2
+(define_insn "one_cmplsi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+        (not:SI (match_operand:SI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_not(insn, operands);
+}")
+
+;; -----------------------------------------------------------------
+;; Shift operation instructions.
+;;
+;; reload_cse_regs must not be allowed to replace a constant with a
+;; register in the shift patterns, since the register would be
+;; clobbered.  Thus we discourage reload to use a register in these
+;; patterns.
+;; -----------------------------------------------------------------
+
+;; ashlqi3
+(define_insn "ashlqi3"
+  [(set (match_operand:QI 0 "general_operand" "=r,r")
+        (ashift:QI (match_operand:QI 1 "general_operand" "g,g")
+                   (match_operand:QI 2 "general_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_left_shift(insn, operands, 0);
+}")
+
+;; ashlhi3
+(define_expand "ashlhi3"
+  [(set (match_operand:HI 0 "register_operand" "")
+        (ashift:HI (match_operand:HI 1 "general_operand" "")
+                   (match_operand:QI 2 "general_operand" "")))]
+  "reload_completed"
+  "expand_a_shift(HImode, ASHIFT, operands);
+   DONE;")
+
+(define_insn "*ashlqihi3_z"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+        (ashift:HI (zero_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+                   (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_left_shift(insn, operands, 0);
+}")
+
+(define_insn "*ashlqihi3"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+   (ashift:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+         (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_left_shift(insn, operands, 1);
+}")
+
+(define_insn "*ashlhi3"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+   (ashift:HI (match_operand:HI 1 "general_operand" "g,g")
+              (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_left_shift(insn, operands, 0);
+}")
+
+;; ashlsi3
+(define_expand "ashlsi3"
+  [(set (reg:SI 1)
+   (ashift:SI (match_operand:SI 1 "general_operand" "")
+         (match_operand:QI 2 "general_operand" "")))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  "reload_completed"
+  "expand_a_shift(SImode, ASHIFT, operands);")
+
+(define_insn "*ashlsi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (ashift:SI (match_operand:SI 1 "general_operand" "g")
+         (match_operand:QI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_left_shift(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+;; ashrqi3
+(define_insn "ashrqi3"
+  [(set (match_operand:QI 0 "general_operand" "=r,r")
+        (ashiftrt:QI (match_operand:QI 1 "general_operand" "rm,rm")
+                     (match_operand:QI 2 "general_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 1);
+}")
+
+;; ashrhi3
+(define_expand "ashrhi3"
+  [(set (match_operand:HI 0 "register_operand" "")
+        (ashiftrt:HI (match_operand:HI 1 "general_operand" "")
+                     (match_operand:QI 2 "general_operand" "")))]
+  "reload_completed"
+  "expand_a_shift(HImode, ASHIFTRT, operands);
+   DONE;")
+
+(define_insn "*ashrqihi3_z"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+        (ashiftrt:HI (zero_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+                     (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}")
+
+(define_insn "*ashrqihi3"
+  [(set  (match_operand:HI 0 "register_operand" "=r,r")
+         (ashiftrt:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+                      (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 1);
+}")
+
+(define_insn "*ashrhi3"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+        (ashiftrt:HI (match_operand:HI 1 "general_operand" "g,g")
+                     (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 1);
+}")
+
+;; ashrsi3
+(define_expand "ashrsi3"
+  [(set (reg:SI 1)
+        (ashiftrt:SI (match_operand:SI 1 "general_operand" "")
+                     (match_operand:QI 2 "general_operand" "")))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  "reload_completed"
+  "expand_a_shift(SImode, ASHIFTRT, operands);")
+
+(define_insn "*ashrsi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+        (ashiftrt:SI (match_operand:SI 1 "general_operand" "g")
+                     (match_operand:QI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 1);
+}"
+  [(set_attr "type" "lib")])
+
+;; lshrqi3
+(define_insn "lshrqi3"
+  [(set (match_operand:QI 0 "general_operand" "=r,r")
+   (lshiftrt:QI (match_operand:QI 1 "general_operand" "rm,rm")
+           (match_operand:QI 2 "general_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}")
+
+;; lshrhi3
+(define_expand "lshrhi3"
+  [(set (match_operand:HI 0 "register_operand" "")
+        (lshiftrt:HI (match_operand:HI 1 "general_operand" "")
+                     (match_operand:QI 2 "general_operand" "")))]
+  "reload_completed"
+  "expand_a_shift(HImode, LSHIFTRT, operands); 
+   DONE;")
+
+(define_insn "*lshrqihi3_z"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+        (lshiftrt:HI (zero_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+                     (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}")
+
+(define_insn "*lshrqihi3"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+        (lshiftrt:HI (sign_extend:HI (match_operand:QI 1 "general_operand" "g,g"))
+                     (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}")
+
+(define_insn "*lshrhi3"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+   (lshiftrt:HI (match_operand:HI 1 "general_operand" "g,g")
+           (match_operand:QI 2 "nonmemory_operand" "i,!r")))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}")
+
+;; lshrsi3
+(define_expand "lshrsi3"
+  [(set (reg:SI 1)
+   (lshiftrt:SI (match_operand:SI 1 "general_operand" "")
+           (match_operand:QI 2 "general_operand" "")))
+   (set (match_operand:SI 0 "general_operand" "")
+   (reg:SI 1))]
+  "reload_completed"
+  "expand_a_shift(SImode, LSHIFTRT, operands);")
+
+(define_insn "*lshrsi3"
+  [(set (match_operand:SI 0 "data_reg_operand" "=f")
+   (lshiftrt:SI (match_operand:SI 1 "general_operand" "g")
+           (match_operand:QI 2 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_right_shift(insn, operands, 0);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Comparison instructions.
+;;
+;; It seems to be a bad idea to try to swap the comparison in the
+;; machine description. GCC likes to have the first operand in a
+;; register and the second be a constant, a memory or a
+;; register. Trying to force things otherwise... loses somewhere.
+;; -----------------------------------------------------------------
+
+; General case
+(define_insn "cmpqi"
+  [(set (cc0)
+   (compare (match_operand:QI 0 "general_operand" "g")
+       (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "")
+
+; cmphi
+(define_insn "tsthi"
+  [(set (cc0)
+   (match_operand:HI 0 "general_operand" "g"))]
+  ""
+  "")
+
+(define_insn "cmphi"
+  [(set (cc0)
+   (compare (match_operand:HI 0 "general_operand" "r")
+       (match_operand:HI 1 "general_operand" "g")))]
+  ""
+  "")
+
+; cmpsi
+;
+; The idea of the second set is to clobber (reg:XX 1); however, if
+; clobber is used, GCC refuses to put an operand of the comparison in
+; (reg:XX 1).  This trick seems to produce better code.
+(define_insn "tstsi"
+  [(set (cc0)
+   (match_operand:SI 0 "general_operand" "g"))]
+  ""
+  "")
+
+(define_insn "cmpsi"
+  [(set (cc0)
+   (compare (match_operand:SI 0 "general_operand" "g")
+       (match_operand:SI 1 "general_operand" "g")))
+   (set (reg:SI 1) (mem:SI (const_int 0)))]
+  ""
+  "")
+
+
+; cmpsf
+(define_insn "tstsf"
+  [(set (cc0)
+   (match_operand:SF 0 "general_operand" "g"))]
+  ""
+  "")
+
+(define_expand "cmpsf"
+  [(parallel [(set (cc0)
+         (compare (match_operand:SF 0 "general_operand" "g")
+             (match_operand:SF 1 "general_operand" "g")))
+         (set (reg:SF 1) (mem:SF (const_int 0)))])]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB
+      && nonimmediate_operand(operands[0], SFmode)
+      && nonimmediate_operand(operands[1], SFmode)) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(3,
+          gen_rtx(SET, VOIDmode,
+             cc0_rtx,
+             gen_rtx(COMPARE, VOIDmode,
+             operands[0], operands[1])),
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(MEM, SFmode,
+                gen_rtx(CONST_INT, VOIDmode, 0))),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    DONE;
+  }
+}")
+
+(define_insn "*cmpsf"
+  [(set (cc0)
+   (compare (match_operand:SF 0 "general_operand" "g")
+       (match_operand:SF 1 "general_operand" "g")))
+   (set (reg:SF 1) (mem:SF (const_int 0)))]
+  ""
+  "")
+
+(define_insn "*cmpsf_s"
+  [(set (cc0)
+   (compare (match_operand:SF 0 "general_operand" "g")
+       (match_operand:SF 1 "general_operand" "g")))
+   (set (reg:SF 1) (mem:SF (const_int 0)))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "")
+
+
+;; -----------------------------------------------------------------
+;; Conversion from integer to float instructions.
+;; -----------------------------------------------------------------
+
+
+
+;; integer to SF
+; QI
+(define_expand "floatunsqisf2"
+  [(set (reg:SF 1)
+   (unsigned_float:SF (match_operand:QI 1 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(UNSIGNED_FLOAT, SFmode, operands[1])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*floatunsqisf2"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:QI 1 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunsqisf2_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:QI 1 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xff);
+}"
+  [(set_attr "type" "lib")])
+
+; HI
+(define_expand "floathisf2"
+  [(set (reg:SF 1)
+   (float:SF (match_operand:HI 1 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(FLOAT, SFmode, operands[1])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_expand "floatunshisf2"
+  [(set (reg:SF 1)
+   (unsigned_float:SF (match_operand:HI 1 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(UNSIGNED_FLOAT, SFmode, operands[1])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*floatunsqisf2_ext"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (zero_extend:HI
+          (match_operand:QI 1 "general_operand" "g"))))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunsqisf2_ext_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (zero_extend:HI
+          (match_operand:QI 1 "general_operand" "g"))))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatqisf2_ext"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (sign_extend:HI
+          (match_operand:QI 1 "general_operand" "g"))))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatqisf2_ext_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (sign_extend:HI
+          (match_operand:QI 1 "general_operand" "g"))))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floathisf2"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (match_operand:HI 1 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floathisf2_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (match_operand:HI 1 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunshisf2"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:HI 1 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunshisf2_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:HI 1 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xffff);
+}"
+  [(set_attr "type" "lib")])
+
+; SI
+(define_expand "floatsisf2"
+  [(set (reg:SF 1)
+   (float:SF (match_operand:SI 1 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(FLOAT, SFmode, operands[1])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_expand "floatunssisf2"
+  [(set (reg:SF 1)
+   (unsigned_float:SF (match_operand:SI 1 "general_operand" "")))
+   (set (match_operand:SF 0 "general_operand" "")
+   (reg:SF 1))]
+  ""
+  "
+{
+  if (TARGET_SOFTLIB) {
+    emit_insn(gen_rtx
+         (PARALLEL, VOIDmode,
+          gen_rtvec(2,
+          gen_rtx(SET, VOIDmode,
+             gen_rtx(REG, SFmode, REG_0),
+             gen_rtx(UNSIGNED_FLOAT, SFmode, operands[1])),
+          gen_rtx(CLOBBER, VOIDmode,
+             gen_rtx(REG, Pmode, ROM_IDX)))));
+    emit_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(REG, SFmode, REG_0)));
+    DONE;
+  }
+}")
+
+(define_insn "*floatsisf2"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (match_operand:SI 1 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatsisf2_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (float:SF (match_operand:SI 1 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 0, 0);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunssisf2"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:SI 1 "general_operand" "g")))]
+  "!TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xffffffff);
+}"
+  [(set_attr "type" "lib")])
+
+(define_insn "*floatunssisf2_s"
+  [(set (match_operand:SF 0 "data_reg_operand" "=f")
+   (unsigned_float:SF (match_operand:SI 1 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  "TARGET_SOFTLIB"
+  "*
+{
+  return output_to_float(insn, operands, 1, 0xffffffff);
+}"
+  [(set_attr "type" "lib")])
+
+
+;; -----------------------------------------------------------------
+;; Sign extend instructions.
+;; -----------------------------------------------------------------
+
+;; extendqihi2
+(define_insn "extendqihi2"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+   (sign_extend:HI (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 1);
+}")
+
+;; extendqisi2
+(define_insn "extendqisi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (sign_extend:SI (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 1);
+}")
+
+;; extendhisi2
+(define_insn "extendhisi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (sign_extend:SI (match_operand:HI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 1);
+}")
+
+
+;; -----------------------------------------------------------------
+;; Zero extend instructions.
+;; -----------------------------------------------------------------
+
+;; zero_extendqihi2
+(define_insn "zero_extendqihi2"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+   (zero_extend:HI (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 0);
+}")
+
+;; zero_extendqisi2
+(define_insn "zero_extendqisi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (zero_extend:SI (match_operand:QI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 0);
+}")
+
+;; zero_extendhisi2
+(define_insn "zero_extendhisi2"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+   (zero_extend:SI (match_operand:HI 1 "general_operand" "g")))]
+  ""
+  "*
+{
+  return output_extend(insn, operands, 0);
+}")
+
+;; -----------------------------------------------------------------
+;; Bit field extraction
+;; CI - should be implemented at some point, cause they might improve
+;; code a bit.
+;; -----------------------------------------------------------------
+
+;; extv
+;(define_insn "extv"
+;  [(set (match_operand:SI 0 "general_operand" "=g")
+;  (sign_extract:SI (match_operand:SI 1 "general_operand" "g")
+;         (match_operand:SI 2 "immediate_operand" "i")
+;         (match_operand:SI 3 "immediate_operand" "i")))]
+;  ""
+;  "extv %0,%1,%2,%3")
+
+;; extzv
+;(define_insn "extzv"
+;  [(set (match_operand:SI 0 "general_operand" "=g")
+;  (zero_extract:SI (match_operand:SI 1 "general_operand" "g")
+;         (match_operand:SI 2 "immediate_operand" "i")
+;         (match_operand:SI 3 "immediate_operand" "i")))]
+;  ""
+;  "extzv   %0,%1,%2,%3")
+
+
+;; -----------------------------------------------------------------
+;; Conditional branch instructions.
+;; -----------------------------------------------------------------
+
+;; Signed less or equal
+(define_expand "ble"
+  [(set (pc)
+   (if_then_else (le (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Signed greater or equal
+(define_expand "bge"
+  [(set (pc)
+   (if_then_else (ge (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Signed less
+(define_expand "blt"
+  [(set (pc)
+   (if_then_else (lt (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Signed greater
+(define_expand "bgt"
+  [(set (pc)
+   (if_then_else (gt (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Unsigned less or equal
+(define_expand "bleu"
+  [(set (pc)
+   (if_then_else (leu (cc0)
+            (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Unsigned greater or equal
+(define_expand "bgeu"
+  [(set (pc)
+   (if_then_else (geu (cc0)
+            (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Unsigned less
+(define_expand "bltu"
+  [(set (pc)
+   (if_then_else (ltu (cc0)
+            (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Unsigned greater
+(define_expand "bgtu"
+  [(set (pc)
+   (if_then_else (gtu (cc0)
+            (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Equal
+(define_expand "beq"
+  [(set (pc)
+   (if_then_else (eq (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Not equal
+(define_expand "bne"
+  [(set (pc)
+   (if_then_else (ne (cc0)
+           (const_int 0))
+            (label_ref (match_operand 0 "" ""))
+            (pc)))]
+  ""
+  "")
+
+;; Match all branch patterns. There are two cases: direct branch and
+;; reverse branch. First the direct branch.
+(define_insn "*branch_accu"
+  [(set (pc)
+   (if_then_else (match_operator 0 "comparison_operator"
+                  [(cc0)
+                   (const_int 0)])
+            (label_ref (match_operand 1 "" ""))
+            (pc)))]
+  ""
+  "*
+{
+  return output_branch(insn, operands, 0);
+}")
+
+; and here the reverse branch.
+(define_insn "*branch_accu_inv"
+  [(set (pc)
+   (if_then_else (match_operator 0 "comparison_operator"
+                  [(cc0)
+                   (const_int 0)])
+            (pc)
+            (label_ref (match_operand 1 "" ""))))]
+  ""
+  "*
+{
+  return output_branch(insn, operands, 1);
+}")
+
+
+;; -----------------------------------------------------------------
+;; Subroutine call instructions.
+;; -----------------------------------------------------------------
+
+;; Subroutines returning void.
+; When using software calls, the ROM index is clobbered
+(define_expand "call"
+  [(parallel [(call (match_operand:QI 0 "" "")
+                    (match_operand:HI 1 "general_operand" ""))
+              (clobber (reg:HI 5))])]
+  ""
+  "
+{
+  if (!CONSTANT_ADDRESS_P(XEXP(operands[0], 0))) 
+  {
+    rtx tem = gen_rtx(REG, Pmode, ROM_IDX);
+    emit_move_insn(tem, XEXP(operands[0], 0));
+    XEXP(operands[0], 0) = tem;
+  }
+  if (!TARGET_SOFTCALL) 
+  {
+    emit_call_insn(gen_rtx(CALL, VOIDmode, operands[0], operands[1]));
+    DONE;
+  }
+}")
+
+(define_insn "*call_ix"
+  [(call (mem:QI (match_operand:HI 0 "romidx_operand" "x"))
+         (match_operand:HI 1 "general_operand" "g"))]
+  ""
+  "CALL  %%ip")
+
+(define_insn "*call"
+  [(call (mem:QI (match_operand:HI 0 "immediate_operand" ""))
+    (match_operand:HI 1 "general_operand" "g"))]
+  ""
+  "CALL  %0")
+
+(define_insn "*calls_ix"
+  [(call (mem:QI (match_operand:HI 0 "romidx_operand" "x"))
+    (match_operand:HI 1 "general_operand" "g"))
+   (clobber (reg:HI 5))]
+  ""
+  "CALLS %%ip")
+
+(define_insn "*calls"
+  [(call (mem:QI (match_operand:HI 0 "immediate_operand" ""))
+    (match_operand:HI 1 "general_operand" "g"))
+   (clobber (reg:HI 5))]
+  ""
+  "CALLS %0")
+
+;; all subroutine, returning value in operand 0
+; When using software calls, the ROM index 0 is clobbered
+(define_expand "call_value"
+  [(parallel [(set (match_operand 0 "register_operand" "")
+         (call (match_operand:QI 1 "" "")
+          (match_operand:HI 2 "general_operand" "")))
+         (clobber (reg:HI 5))])]
+  ""
+  "
+{
+  if (!CONSTANT_ADDRESS_P(XEXP(operands[1], 0)))
+  {
+    rtx tem = gen_rtx(REG, Pmode, ROM_IDX);
+    emit_move_insn(tem, XEXP(operands[1], 0));
+    XEXP(operands[1], 0) = tem;
+  }
+
+  if (!TARGET_SOFTCALL) 
+  {
+    emit_call_insn(gen_rtx(SET, VOIDmode, operands[0],
+            gen_rtx(CALL, VOIDmode, operands[1], operands[2])));
+    DONE;
+  }
+}")
+
+(define_insn "*call_value_ix"
+  [(set (match_operand 0 "register_operand" "")
+        (call (mem:QI (match_operand:HI 1 "romidx_operand" "x"))
+              (match_operand:HI 2 "general_operand" "g")))]
+  ""
+  "CALL  %%ip")
+
+(define_insn "*call_value"
+  [(set (match_operand 0 "register_operand" "")
+   (call (mem:QI (match_operand:HI 1 "immediate_operand" ""))
+         (match_operand:HI 2 "general_operand" "g")))]
+  ""
+  "CALL  %1")
+
+(define_insn "*calls_value_ix"
+  [(set (match_operand 0 "register_operand" "")
+   (call (mem:QI (match_operand:HI 1 "romidx_operand" "x"))
+         (match_operand:HI 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  ""
+  "CALLS %%ip")
+
+(define_insn "*calls_value"
+  [(set (match_operand 0 "register_operand" "")
+   (call (mem:QI (match_operand:HI 1 "immediate_operand" ""))
+         (match_operand:HI 2 "general_operand" "g")))
+   (clobber (reg:HI 5))]
+  ""
+  "CALLS %1")
+
+
+;; -----------------------------------------------------------------
+;; Some special instructions
+;; -----------------------------------------------------------------
+
+;; movstrqi
+(define_expand "movstrqi"
+  [(parallel [(set (match_operand:BLK 0 "" "")
+         (match_operand:BLK 1 "" ""))
+         (use (match_operand:QI 2 "general_operand" ""))
+         (use (match_operand:QI 3 "const_int_operand" ""))
+         (clobber (match_dup 4))
+         (clobber (match_dup 5))
+         (clobber (match_dup 2))])]
+  ""
+  "
+{
+  operands[2] = force_reg (QImode, operands[2]);
+  operands[4] = copy_to_mode_reg (Pmode, XEXP (operands[0], 0));
+  operands[5] = copy_to_mode_reg (Pmode, XEXP (operands[1], 0));
+  operands[0] = gen_rtx (MEM, BLKmode, operands[4]);
+  operands[1] = gen_rtx (MEM, BLKmode, operands[5]);
+}")
+
+(define_insn "*movstrqi"
+  [(set (mem:BLK (match_operand:HI 0 "register_operand" "a"))
+   (mem:BLK (match_operand:HI 1 "register_operand" "a")))
+   (use (match_operand:QI 2 "register_operand" "r"))
+   (use (match_operand:QI 3 "const_int_operand" "i"))
+   (clobber (match_dup 0))
+   (clobber (match_dup 1))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_movstr(insn, operands);
+}")
+
+;; movstrhi
+(define_expand "movstrhi"
+  [(parallel [(set (match_operand:BLK 0 "" "")
+         (match_operand:BLK 1 "" ""))
+         (use (match_operand:HI 2 "general_operand" ""))
+         (use (match_operand:HI 3 "const_int_operand" ""))
+         (clobber (match_dup 4))
+         (clobber (match_dup 5))
+         (clobber (match_dup 2))])]
+  ""
+  "
+{
+  operands[2] = force_reg (HImode, operands[2]);
+  operands[4] = copy_to_mode_reg (Pmode, XEXP (operands[0], 0));
+  operands[5] = copy_to_mode_reg (Pmode, XEXP (operands[1], 0));
+  operands[0] = gen_rtx (MEM, BLKmode, operands[4]);
+  operands[1] = gen_rtx (MEM, BLKmode, operands[5]);
+}")
+
+(define_insn "*movstrhi"
+  [(set (mem:BLK (match_operand:HI 0 "register_operand" "a"))
+   (mem:BLK (match_operand:HI 1 "register_operand" "a")))
+   (use (match_operand:HI 2 "register_operand" "r"))
+   (use (match_operand:HI 3 "const_int_operand" "i"))
+   (clobber (match_dup 0))
+   (clobber (match_dup 1))
+   (clobber (match_dup 2))]
+  ""
+  "*
+{
+  return output_movstr(insn, operands);
+}")
+
+
+;; -----------------------------------------------------------------
+;; No operation instructions.
+;; -----------------------------------------------------------------
+
+;; nop
+(define_insn "nop"
+  [(const_int 0)]
+  ""
+  "NOP")
+
+
+;; -----------------------------------------------------------------
+;; Jump instructions.
+;; -----------------------------------------------------------------
+
+;; Unconditional jump
+(define_insn "jump"
+  [(set (pc)
+   (label_ref (match_operand 0 "" "")))]
+  ""
+  "JUMP  %0")
+
+;; indirect jump
+(define_expand "indirect_jump"
+  [(set (reg:HI 5) (match_operand:HI 0 "general_operand" ""))
+   (set (pc) (reg:HI 5))]
+  ""
+  "")
+
+(define_insn "*indirect_jump"
+  [(set (pc) (match_operand:HI 0 "romidx_operand" "x"))]
+  ""
+  "JUMP  %%ip")
+
+;; table jump
+(define_expand "tablejump"
+  [(set (reg:HI 5) (match_operand:HI 0 "general_operand" ""))
+   (parallel [(set (pc) (reg:HI 5))
+         (use (label_ref (match_operand 1 "" "")))])]
+  ""
+  "")
+
+(define_insn "*tablejump"
+  [(set (pc) (match_operand:HI 0 "romidx_operand" "x"))
+   (use (label_ref (match_operand 1 "" "")))]
+  ""
+  "JUMP  %%ip")
+
+
+;; -----------------------------------------------------------------
+;; Some general templates
+;;
+;; Put this late in the file, so that particular operations have a
+;; chance to define templates for special cases.
+;; -----------------------------------------------------------------
+
+;; match all commutative operations, except multiplication.
+(define_insn "*com_opqi3_accu"
+  [(set (match_operand:QI 0 "general_operand" "=g")
+        (match_operator:QI 3 "commutative_operator"
+            [(match_operand:QI 1 "general_operand" "%g")
+             (match_operand:QI 2 "general_operand" "g")]))]
+  ""
+  "*
+{
+  return output_commutative(insn, operands);
+}")
+
+;; match all logical operations.
+(define_insn "*log_ophi3"
+  [(set (match_operand:HI 0 "general_operand" "=g")
+        (match_operator:HI 3 "c816_logical_operator"
+            [(match_operand:HI 1 "general_operand" "%g")
+             (match_operand:HI 2 "general_operand" "g")]))]
+  ""
+  "*
+{
+  return output_logical(insn, operands);
+}")
+
+(define_insn "*log_opsi3"
+  [(set (match_operand:SI 0 "general_operand" "=g")
+        (match_operator:SI 3 "c816_logical_operator"
+            [(match_operand:SI 1 "general_operand" "%g")
+             (match_operand:SI 2 "general_operand" "g")]))]
+  ""
+  "*
+{
+  return output_logical(insn, operands);
+}")
+
+
+;; -----------------------------------------------------------------
+;; Peephole optimizations.
+;; -----------------------------------------------------------------
+
+; None so far...

@@ -1,0 +1,6 @@
+/* 24-bit floating point: float */
+FLOAT_MODE(TQF, 3, c816_single_format);
+
+/* 32-bit floating point: double. */
+RESET_FLOAT_FORMAT(SF, ieee_single_format);
+
