@@ -127,7 +127,7 @@ IndP8m:   -(ixm, off)       is ixm & offset_7      [ off = (offset_7 ^ 0x7F) + 1
 IndP8m:   -(ixm)            is ixm & offset_7=0x7F                                  { ixm = ixm - 1; ptr:2 = ixm; export *[data]:1 ptr; }
 }
 
-Addr8:    inv   is n_addr_8      [ inv = n_addr_8 ^ 0xFF; ]     { export *[data] inv; }
+Addr8:    inv   is n_addr_8      [ inv = n_addr_8 ^ 0xFF; ]     { export *[data]:1 inv; }
 
 # Return pointers to code memory
 Ip:       "IP"  is op0_15=0xFFFF { export *[code] IP; }
