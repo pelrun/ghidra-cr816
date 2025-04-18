@@ -171,17 +171,17 @@
     </pcode>
   </callfixup>
 
-
+  <!-- Currently ghidra isn't liking this one
   <callfixup name="floatqisf2">
     <target name="floatqisf2"/>
     <pcode>
       <body><![CDATA[
       if (A==0) goto <unsigned>;
-      out = int2float(sext(R0));
-      goto <out>;
+      out:4 = int2float(sext(R0));
+      goto <output>;
     <unsigned>
-      out = int2float(zext(R0));
-    <out>
+      out:4 = int2float(zext(R0));
+    <output>
       R3 = out[24,8];
       R2 = out[16,8];
       R1 = out[8,8];
@@ -189,13 +189,14 @@
       ]]></body>
     </pcode>
   </callfixup>
+  -->
 
   <callfixup name="floathisf2">
     <target name="floathisf2"/>
     <pcode>
       <body><![CDATA[
       tmp:4 = sext(R2 << 8 | R1);
-      out = int2float(tmp);
+      out:4 = int2float(tmp);
       R3 = out[24,8];
       R2 = out[16,8];
       R1 = out[8,8];
@@ -209,7 +210,7 @@
     <pcode>
       <body><![CDATA[
       tmp:4 = zext(R3 << 24 | R2 << 16 | R1 << 8 | R0);
-      out = int2float(tmp);
+      out:4 = int2float(tmp);
       R3 = out[24,8];
       R2 = out[16,8];
       R1 = out[8,8];
@@ -223,7 +224,7 @@
     <pcode>
       <body><![CDATA[
       tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
-      out = trunc(tmp);
+      out:2 = trunc(tmp);
       R1 = out[8,8];
       R0 = out[0,8];
       ]]></body>
@@ -235,7 +236,7 @@
     <pcode>
       <body><![CDATA[
       tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
-      out = trunc(tmp);
+      out:2 = trunc(tmp);
       R1 = out[8,8];
       R0 = out[0,8];
       ]]></body>
@@ -247,7 +248,7 @@
     <pcode>
       <body><![CDATA[
       tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
-      out = trunc(tmp);
+      out:4 = trunc(tmp);
       R3 = out[24,8];
       R2 = out[16,8];
       R1 = out[8,8];
@@ -261,7 +262,7 @@
     <pcode>
       <body><![CDATA[
       tmp:4 = R3 << 24 | R2 << 16 | R1 << 8 | R0;
-      out = trunc(tmp);
+      out:4 = trunc(tmp);
       R3 = out[24,8];
       R2 = out[16,8];
       R1 = out[8,8];
