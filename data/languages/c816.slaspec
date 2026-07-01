@@ -6,7 +6,7 @@ define alignment=3;
 
 # Instruction words are 22 bits wide
 define space code     type=ram_space      size=2 wordsize=3;
-define space data     type=ram_space      size=2 default;
+define space data     type=ram_space      size=2 wordsize=1 default;
 define space register type=register_space size=1;
 define space hw_stack type=ram_space      size=1 wordsize=2;
 
@@ -106,6 +106,10 @@ macro pop(ret) {
 ################################################################
 # C816 addressing modes
 # Return pointers to data memory
+
+IndOff8m:  (ixm, offset_8)  is ixm & offset_8   { ptr : 2 = ixm + offset_8; export *[data]:1 ptr; }
+IndOff8m:  (ixm)            is ixm & offset_8=0 { ptr : 2 = ixm; export *[data]:1 ptr; }
+
 IndOff8:  (ix, offset_8)  is ix & offset_8   { ptr : 2 = ix + offset_8; export *[data]:1 ptr; }
 IndOff8:  (ix)            is ix & offset_8=0 { ptr : 2 = ix; export *[data]:1 ptr; }
 
@@ -484,9 +488,9 @@ define pcodeop freq;
 	IndP8m = reg;
 }
 
-# 9 - MOVE with immediate offset (??)
-:MOVE IndOff8,reg             is op14_8=0b00001011 & IndOff8 & reg {
-	IndOff8 = reg;
+# 9 - MOVE with immediate offset (Fixed)
+:MOVE IndOff8m,reg            is op14_8=0b00001011 & IndOff8m & reg {
+	IndOff8m = reg;
 }
 
 # 10 - MOVE immediate address
